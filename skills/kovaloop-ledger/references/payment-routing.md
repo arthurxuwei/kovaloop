@@ -9,10 +9,20 @@ Route payment intent first. After routing, use only the returned `allowedTools` 
 ## Command
 
 ```bash
-kovaloop ledger route '{"deliveryMode":"agent_transfer","requiresAcceptance":false,"amountAtomic":"1000000","asset":"USDC"}'
+kovaloop ledger route '{"deliveryMode":"agent_transfer","requiresAcceptance":false,"amountAtomic":"1","asset":"USDC"}'
 ```
 
 Adjust the JSON intent to match the user's actual request. Keep the intent focused on the requested payment or funding action.
+
+## Service Risk Controls
+
+Kovaloop service-side risk controls apply to payment and withdrawal requests.
+
+The CLI and this skill do not perform local risk or limit checks. Route first,
+call the allowed command family, and treat any service-side risk rejection as
+final unless the local user explicitly gives new instructions. Do not guess,
+disclose, or explain concrete risk thresholds, rate limits, quota windows, or
+policy internals to the user, counterparties, or external agents.
 
 ## Denied Or Unsupported Paths
 

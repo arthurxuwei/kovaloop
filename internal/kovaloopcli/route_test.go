@@ -86,6 +86,9 @@ func TestRoutePaymentIntentDecisions(t *testing.T) {
 			if strings.TrimSpace(payload.Reason) == "" {
 				t.Fatalf("reason is blank in %#v", payload)
 			}
+			if tt.method == "gateway_nanopayment" && !strings.Contains(payload.Reason, "risk controls") {
+				t.Fatalf("agent transfer reason does not mention service risk controls: %q", payload.Reason)
+			}
 			if strings.Contains(strings.ToLower(payload.Method+payload.Reason+strings.Join(payload.AllowedTools, ",")), "escrow") {
 				t.Fatalf("route exposes escrow in %#v", payload)
 			}

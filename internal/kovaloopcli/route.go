@@ -32,7 +32,7 @@ func RoutePaymentIntent(intentJSON string) string {
 			Method:             "gateway_nanopayment",
 			NeedsClarification: false,
 			AllowedTools:       []string{"agent_wallet_transfer"},
-			Reason:             "Immediate internal Agent-to-Agent payments use Circle Gateway Nanopayments; the ledger records the transfer only after Gateway settlement succeeds.",
+			Reason:             "Immediate internal Agent-to-Agent payments use Circle Gateway Nanopayments; service-side risk controls apply and the ledger records the transfer only after Gateway settlement succeeds.",
 		}
 	case intent.DeliveryMode == "withdrawal":
 		decision = routeDecision{

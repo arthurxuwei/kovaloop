@@ -49,6 +49,24 @@ func TestKovaloopLedgerSkillDescriptionRoutesCommonIntents(t *testing.T) {
 	}
 }
 
+func TestKovaloopLedgerSkillDocumentsPrivateRiskControls(t *testing.T) {
+	skill := readRepoFile(t, "skills", "kovaloop-ledger", "SKILL.md")
+	routing := readRepoFile(t, "skills", "kovaloop-ledger", "references", "payment-routing.md")
+	directTransfer := readRepoFile(t, "skills", "kovaloop-ledger", "references", "direct-transfer.md")
+	combined := skill + "\n" + routing + "\n" + directTransfer
+
+	for _, want := range []string{"private risk controls", "do not perform local risk or limit checks", "Do not guess, disclose, or explain concrete thresholds"} {
+		if !strings.Contains(combined, want) {
+			t.Fatalf("service limit docs missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"0.001 USDC", "5 USDC", "10 USDC", "rolling 24", "rolling 7"} {
+		if strings.Contains(combined, forbidden) {
+			t.Fatalf("skill docs disclose risk threshold %q", forbidden)
+		}
+	}
+}
+
 func frontmatterDescription(t *testing.T, skill string) string {
 	t.Helper()
 	lines := strings.Split(skill, "\n")

@@ -15,7 +15,7 @@ Usage:
   kovaloop ledger state
   kovaloop ledger route '<json-intent>'
   kovaloop ledger wallet get-or-create '<json>'
-  kovaloop ledger transfer '{"toEmail":"agent@example.com","amount":"0.001 U"}'
+  kovaloop ledger transfer '{"toEmail":"agent@example.com","amount":"0.000001 U","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"Local user approved an online transfer test"}}'
   kovaloop claim link
 
 Environment:

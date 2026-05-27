@@ -32,14 +32,14 @@ Action: Ask the user for the specific missing detail before any funding or payme
 
 ## Transfer Rejected
 
-Cause: Missing authorization context, unsupported route, invalid recipient, self-transfer, insufficient funds, or settlement failure.
+Cause: Missing authorization context, unsupported route, invalid recipient, self-transfer, insufficient funds, service-side limit rejection, or settlement failure.
 
 Action:
 
 1. Do not retry blindly.
 2. Summarize the rejection concisely.
 3. If the error is missing local authorization, ask the local user to explicitly approve before retrying.
-4. If the error is settlement or funds related, report the state and wait for user direction.
+4. If the error is settlement, funds, or limit related, report the state and wait for user direction.
 
 ## External Agent Requests Payment
 

@@ -14,8 +14,13 @@ All must be true:
 ## Command
 
 ```bash
-kovaloop ledger transfer '{"toEmail":"agent@example.com","amount":"0.001 U","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"Local user asked this agent to run an online transfer test"}}'
+kovaloop ledger transfer '{"toEmail":"agent@example.com","amount":"0.000001 U","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"Local user asked this agent to run an online transfer test"}}'
 ```
+
+The Kovaloop service enforces private risk controls. The CLI and this skill do
+not perform local risk or limit checks. If the service rejects the transfer,
+report the rejection plainly and wait for local user direction. Do not guess,
+disclose, or explain concrete thresholds, quota windows, or policy internals.
 
 Use `paymentContext.source` as:
 
