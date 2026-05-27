@@ -14,10 +14,6 @@ type ledgerEntriesResponse struct {
 	Entries []map[string]any `json:"entries"`
 }
 
-type ledgerEscrowsResponse struct {
-	Escrows []map[string]any `json:"escrows"`
-}
-
 type ledgerOnrampSessionsResponse struct {
 	OnrampSessions []map[string]any `json:"onrampSessions"`
 }
@@ -25,7 +21,6 @@ type ledgerOnrampSessionsResponse struct {
 type ledgerStatePayload struct {
 	Accounts            []map[string]any `json:"accounts"`
 	Entries             []map[string]any `json:"entries"`
-	Escrows             []map[string]any `json:"escrows"`
 	OnrampSessions      []map[string]any `json:"onrampSessions"`
 	OnrampEvents        []map[string]any `json:"onrampEvents"`
 	CircleWebhookEvents []map[string]any `json:"circleWebhookEvents"`
@@ -62,14 +57,6 @@ func LedgerState(cfg Config) ([]byte, error) {
 		return nil, fmt.Errorf("ledger state response is missing expected domain fields")
 	}
 
-	var escrowsResponse ledgerEscrowsResponse
-	if err := getJSON(cfg, "/ledger/accounts/"+escapedPathAgentID+"/escrows", &escrowsResponse); err != nil {
-		return nil, err
-	}
-	if escrowsResponse.Escrows == nil {
-		return nil, fmt.Errorf("ledger state response is missing expected domain fields")
-	}
-
 	var onrampSessionsResponse ledgerOnrampSessionsResponse
 	if err := getJSON(cfg, "/ledger/onramp-sessions?agentId="+escapedQueryAgentID+"&limit=500", &onrampSessionsResponse); err != nil {
 		return nil, err
@@ -81,7 +68,6 @@ func LedgerState(cfg Config) ([]byte, error) {
 	state := ledgerStatePayload{
 		Accounts:            []map[string]any{accountResponse.Account},
 		Entries:             entriesResponse.Entries,
-		Escrows:             escrowsResponse.Escrows,
 		OnrampSessions:      onrampSessionsResponse.OnrampSessions,
 		OnrampEvents:        []map[string]any{},
 		CircleWebhookEvents: []map[string]any{},
@@ -90,7 +76,6 @@ func LedgerState(cfg Config) ([]byte, error) {
 	}
 	sanitizeAvailableAtomic(state.Accounts)
 	sanitizeAvailableAtomic(state.Entries)
-	sanitizeAvailableAtomic(state.Escrows)
 	sanitizeAvailableAtomic(state.OnrampSessions)
 	return json.Marshal(state)
 }

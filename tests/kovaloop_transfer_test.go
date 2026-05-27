@@ -59,9 +59,6 @@ func (s *ledgerStub) handleGet(w http.ResponseWriter, r *http.Request) {
 	case "/ledger/accounts/agent_sender/entries?limit=500":
 		s.recordStatePath(r.URL.RequestURI())
 		writeJSON(w, http.StatusOK, map[string]any{"entries": []any{}})
-	case "/ledger/accounts/agent_sender/escrows":
-		s.recordStatePath(r.URL.RequestURI())
-		writeJSON(w, http.StatusOK, map[string]any{"escrows": []any{}})
 	case "/ledger/onramp-sessions?agentId=agent_sender&limit=500":
 		s.recordStatePath(r.URL.RequestURI())
 		writeJSON(w, http.StatusOK, map[string]any{"onrampSessions": []any{}})
@@ -258,7 +255,6 @@ func TestIntegrationLedgerStateIsProfileScopedAndSanitized(t *testing.T) {
 	for _, want := range []string{
 		"/ledger/accounts/agent_sender",
 		"/ledger/accounts/agent_sender/entries?limit=500",
-		"/ledger/accounts/agent_sender/escrows",
 		"/ledger/onramp-sessions?agentId=agent_sender&limit=500",
 	} {
 		if !containsString(stub.paths(), want) {

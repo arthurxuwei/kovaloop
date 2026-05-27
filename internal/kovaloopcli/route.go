@@ -39,34 +39,34 @@ func RoutePaymentIntent(intentJSON string) string {
 			Method:             "needs_clarification",
 			NeedsClarification: true,
 			AllowedTools:       []string{},
-			Reason:             "This install kit only exposes ledger wallet, escrow, and settlement operations. Ask the operator before handling withdrawals.",
+			Reason:             "This install kit only exposes ledger wallet, funding, direct transfer, and settlement operations. Ask the operator before handling withdrawals.",
 		}
 	case intent.DeliveryMode == "immediate_api":
 		decision = routeDecision{
 			Method:             "needs_clarification",
 			NeedsClarification: true,
 			AllowedTools:       []string{},
-			Reason:             "This install kit only exposes ledger wallet, escrow, and settlement operations. Ask the operator before immediate paid API calls.",
+			Reason:             "This install kit only exposes ledger wallet, funding, direct transfer, and settlement operations. Ask the operator before immediate paid API calls.",
 		}
 	case intent.DeliveryMode == "async_task" || intent.RequiresAcceptance:
 		decision = routeDecision{
-			Method:             "ledger_escrow",
-			NeedsClarification: false,
-			AllowedTools:       []string{"agent_wallet_create_escrow", "agent_wallet_release_escrow", "agent_wallet_refund_escrow"},
-			Reason:             "Matched asynchronous task payments require ledger escrow so funds can be locked, released, or refunded.",
+			Method:             "needs_clarification",
+			NeedsClarification: true,
+			AllowedTools:       []string{},
+			Reason:             "Asynchronous task settlement is not publicly exposed in this install kit. Ask the operator before handling this payment.",
 		}
 	default:
 		decision = routeDecision{
 			Method:             "needs_clarification",
 			NeedsClarification: true,
 			AllowedTools:       []string{},
-			Reason:             "The payment intent is ambiguous. Clarify whether this is funding or asynchronous task escrow before proceeding.",
+			Reason:             "The payment intent is ambiguous. Clarify whether this is funding, direct transfer, withdrawal, or another payment type before proceeding.",
 		}
 	}
 
 	data, err := json.Marshal(decision)
 	if err != nil {
-		return `{"method":"needs_clarification","needsClarification":true,"allowedTools":[],"reason":"The payment intent is ambiguous. Clarify whether this is funding or asynchronous task escrow before proceeding."}` + "\n"
+		return `{"method":"needs_clarification","needsClarification":true,"allowedTools":[],"reason":"The payment intent is ambiguous. Clarify whether this is funding, direct transfer, withdrawal, or another payment type before proceeding."}` + "\n"
 	}
 	return string(data) + "\n"
 }

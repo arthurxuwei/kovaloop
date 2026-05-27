@@ -2,6 +2,7 @@ package kovaloopcli
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 
@@ -55,6 +56,43 @@ func TestLedgerHelpPrintsUsageToStdout(t *testing.T) {
 			}
 			if stderr.String() != "" {
 				t.Fatalf("stderr = %q", stderr.String())
+			}
+		})
+	}
+}
+
+func TestUsageDoesNotExposeInternalLedgerWriteCommands(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exitCode := Run([]string{"help"}, &stdout, &stderr, EnvMap{})
+	if exitCode != 0 {
+		t.Fatalf("exit code = %d", exitCode)
+	}
+	lowerUsage := strings.ToLower(stdout.String())
+	for _, forbidden := range []string{"escrow", "credit"} {
+		if strings.Contains(lowerUsage, forbidden) {
+			t.Fatalf("usage exposes %s: %q", forbidden, stdout.String())
+		}
+	}
+}
+
+func TestInternalLedgerWriteCommandsAreUnavailable(t *testing.T) {
+	for _, args := range [][]string{
+		{"ledger", "escrow", "release", "escrow/1"},
+		{"ledger", "credit", "agent/one", "12345", "test credit"},
+	} {
+		t.Run(strings.Join(args[:2], " "), func(t *testing.T) {
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+			exitCode := Run(args, &stdout, &stderr, EnvMap{})
+			if exitCode != 2 {
+				t.Fatalf("exit code = %d", exitCode)
+			}
+			lowerOutput := strings.ToLower(stdout.String() + stderr.String())
+			for _, forbidden := range []string{"escrow release", "ledger credit"} {
+				if strings.Contains(lowerOutput, forbidden) {
+					t.Fatalf("internal write usage exposed: stdout=%q stderr=%q", stdout.String(), stderr.String())
+				}
 			}
 		})
 	}

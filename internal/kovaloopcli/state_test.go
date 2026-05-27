@@ -26,8 +26,6 @@ func TestLedgerStateAggregatesProfileScopedEndpoints(t *testing.T) {
 			fmt.Fprint(w, `{"account":{"agentId":"agent/one","availableAtomic":"999","lockedAtomic":"100","circleUsdcBalance":"12.34","nested":{"availableAtomic":"111"}}}`)
 		case "/ledger/accounts/agent%2Fone/entries?limit=500":
 			fmt.Fprint(w, `{"entries":[{"id":"entry_1","amountAtomic":"100","availableAtomic":"222","metadata":{"availableAtomic":"333"}}]}`)
-		case "/ledger/accounts/agent%2Fone/escrows":
-			fmt.Fprint(w, `{"escrows":[{"id":"escrow_1","lockedAtomic":"100","availableAtomic":"444","events":[{"availableAtomic":"555"}]}]}`)
 		case "/ledger/onramp-sessions?agentId=agent%2Fone&limit=500":
 			fmt.Fprint(w, `{"onrampSessions":[{"id":"onramp_1","status":"pending","availableAtomic":"666","provider":{"availableAtomic":"777"}}]}`)
 		default:
@@ -46,17 +44,16 @@ func TestLedgerStateAggregatesProfileScopedEndpoints(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exit=%d stderr=%s", exitCode, stderr.String())
 	}
-	if len(requests) != 4 {
+	if len(requests) != 3 {
 		t.Fatalf("requests = %#v", requests)
 	}
-	if strings.Contains(stdout.String(), "availableAtomic") {
+	if strings.Contains(stdout.String(), "availableAtomic") || strings.Contains(strings.ToLower(stdout.String()), "escrow") {
 		t.Fatalf("state leaked availableAtomic: %s", stdout.String())
 	}
 
 	var state struct {
 		Accounts            []map[string]any `json:"accounts"`
 		Entries             []map[string]any `json:"entries"`
-		Escrows             []map[string]any `json:"escrows"`
 		OnrampSessions      []map[string]any `json:"onrampSessions"`
 		OnrampEvents        []map[string]any `json:"onrampEvents"`
 		CircleWebhookEvents []map[string]any `json:"circleWebhookEvents"`
@@ -71,9 +68,6 @@ func TestLedgerStateAggregatesProfileScopedEndpoints(t *testing.T) {
 	}
 	if len(state.Entries) != 1 || state.Entries[0]["id"] != "entry_1" {
 		t.Fatalf("entries = %#v", state.Entries)
-	}
-	if len(state.Escrows) != 1 || state.Escrows[0]["id"] != "escrow_1" {
-		t.Fatalf("escrows = %#v", state.Escrows)
 	}
 	if len(state.OnrampSessions) != 1 || state.OnrampSessions[0]["id"] != "onramp_1" {
 		t.Fatalf("onrampSessions = %#v", state.OnrampSessions)
