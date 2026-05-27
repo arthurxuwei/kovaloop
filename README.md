@@ -8,8 +8,7 @@ This repository intentionally contains only the distribution artifacts an agent
 needs:
 
 - `cmd/kovaloop`: Go CLI source for the local `kovaloop` entrypoint used by agents
-- `skills/kovaloop-ledger`: ledger, Agent Wallet onboarding, direct Agent transfer, and escrow workflow skill
-- `skills/kovaloop-a2a-service-trade`: A2A service-trade settlement skill
+- `skills/kovaloop-ledger`: ledger, Agent Wallet onboarding, direct Agent transfer, and funding state skill
 - `install.sh`: curl-pipe installer for ZeroClaw runtime files
 - `INSTALL.md`: install and verification steps
 

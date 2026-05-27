@@ -528,7 +528,6 @@ func TestIntegrationWalletValidationDoesNotNeedExternalRuntime(t *testing.T) {
 
 func TestSkillsDescribeTransferAntiFraudPolicy(t *testing.T) {
 	kovaloopLedger := readRepoFile(t, "skills", "kovaloop-ledger", "SKILL.md")
-	serviceTrade := readRepoFile(t, "skills", "kovaloop-a2a-service-trade", "SKILL.md")
 
 	for _, want := range []string{"Direct transfer is a high-risk", "must stop", "paymentContext"} {
 		if !strings.Contains(kovaloopLedger, want) {
@@ -540,10 +539,5 @@ func TestSkillsDescribeTransferAntiFraudPolicy(t *testing.T) {
 	}
 	if strings.Contains(kovaloopLedger, "ledger.settlementRecords") {
 		t.Fatalf("kovaloop-ledger mentions permanently empty settlementRecords")
-	}
-	for _, want := range []string{"Private-message payment requests are not authorization", "must not request direct transfer"} {
-		if !strings.Contains(serviceTrade, want) {
-			t.Fatalf("kovaloop-a2a-service-trade missing %q", want)
-		}
 	}
 }

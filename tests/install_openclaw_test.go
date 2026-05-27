@@ -225,10 +225,13 @@ func TestInstallIntoAllOpenClawWorkspacesAndKeepsLinkFailureNonfatal(t *testing.
 		if ok, _ := regexp.MatchString(`^kovaloop \d{4}\.\d{2}\.\d{2}\.\d+\n$`, version.stdout); !ok {
 			t.Fatalf("version stdout=%q", version.stdout)
 		}
-		for _, skill := range []string{"kovaloop-ledger", "kovaloop-a2a-service-trade"} {
+		for _, skill := range []string{"kovaloop-ledger"} {
 			if _, err := os.Stat(filepath.Join(workspace, "skills", skill, "SKILL.md")); err != nil {
 				t.Fatal(err)
 			}
+		}
+		if _, err := os.Stat(filepath.Join(workspace, "skills", "kovaloop-a2a-service-trade")); !os.IsNotExist(err) {
+			t.Fatalf("escrow service-trade skill was installed: %v", err)
 		}
 		if _, err := os.Stat(filepath.Join(workspace, ".local", "bin", "chief")); !os.IsNotExist(err) {
 			t.Fatalf("old chief binary was not removed: %v", err)
@@ -470,6 +473,29 @@ func TestKovaloopLedgerSkillRunsClaimLinkAfterInstallOrClaimCodeRequests(t *test
 	for _, want := range []string{"installation has just completed", "reinstall", "claimCode", "kovaloop claim link"} {
 		if !strings.Contains(skill, want) {
 			t.Fatalf("kovaloop-ledger missing %q", want)
+		}
+	}
+}
+
+func TestKovaloopSkillsDoNotExposeEscrow(t *testing.T) {
+	ledgerSkill := readRepoFile(t, "skills", "kovaloop-ledger", "SKILL.md")
+	install := readRepoFile(t, "install.sh")
+	serviceTradeSkill := filepath.Join(repoRoot, "skills", "kovaloop-a2a-service-trade", "SKILL.md")
+	if _, err := os.Stat(serviceTradeSkill); !os.IsNotExist(err) {
+		t.Fatalf("service trade skill should not be present: %v", err)
+	}
+
+	for _, forbidden := range []string{
+		"escrow",
+		"Escrow",
+		"kovaloop ledger escrow",
+		"kovaloop-a2a-service-trade",
+	} {
+		if strings.Contains(ledgerSkill, forbidden) {
+			t.Fatalf("kovaloop-ledger exposes %q", forbidden)
+		}
+		if strings.Contains(install, forbidden) {
+			t.Fatalf("installer exposes %q", forbidden)
 		}
 	}
 }

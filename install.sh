@@ -137,7 +137,6 @@ install_workspace() {
   rm -f "$bin_dest/chief"
 
   install_skill_to "$skills_dest" kovaloop-ledger
-  install_skill_to "$skills_dest" kovaloop-a2a-service-trade
 
   install_kovaloop_binary "$bin_dest/kovaloop"
 

@@ -1,7 +1,6 @@
 # Install Kovaloop CLI
 
-Install the Go-based `kovaloop` CLI and only the Kovaloop skills this deployment
-uses: `kovaloop-ledger` and `kovaloop-a2a-service-trade`.
+Install the Go-based `kovaloop` CLI and the `kovaloop-ledger` skill.
 
 Kovaloop installs into OpenClaw workspaces only.
 
