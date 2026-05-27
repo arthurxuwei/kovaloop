@@ -1,0 +1,70 @@
+# Install Kovaloop CLI
+
+Install the Go-based `kovaloop` CLI and only the Kovaloop skills this deployment
+uses: `kovaloop-ledger` and `kovaloop-a2a-service-trade`.
+
+Kovaloop installs into OpenClaw workspaces only.
+
+By default, run the installer from the directory that contains
+`runtime-openclaw-*/workspace`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/arthurxuwei/kovaloop/main/install.sh | bash
+```
+
+To install one workspace explicitly:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/arthurxuwei/kovaloop/main/install.sh \
+  | OPENCLAW_WORKSPACE_DIR='/path/to/runtime-openclaw-x/workspace' bash
+```
+
+The installer is still the supported installation path. Normal users do not
+need Go; `install.sh` downloads the platform binary from GitHub releases by
+default using `KOVALOOP_INSTALL_BIN_BASE_URL`, which defaults to
+`https://github.com/arthurxuwei/kovaloop/releases/latest/download`.
+
+Supported release platforms:
+
+- `darwin/amd64`
+- `darwin/arm64`
+- `linux/amd64`
+- `linux/arm64`
+
+After installation, the installer attempts to print `Claim Link` and
+`Agent Link` by running `kovaloop claim link` for the current OpenClaw profile.
+The owner email comes from that profile. If the ledger is unavailable, rerun:
+
+```bash
+OPENCLAW_WORKSPACE_DIR='/path/to/workspace' '/path/to/workspace/.local/bin/kovaloop' claim link
+```
+
+## Verify
+
+On the host:
+
+```bash
+test -x /path/to/workspace/.local/bin/kovaloop
+/path/to/workspace/.local/bin/kovaloop version
+/path/to/workspace/.local/bin/kovaloop ledger health
+/path/to/workspace/.local/bin/kovaloop ledger state
+/path/to/workspace/.local/bin/kovaloop ledger route '{"deliveryMode":"agent_transfer","requiresAcceptance":false,"amountAtomic":"1000000","asset":"USDC"}'
+/path/to/workspace/.local/bin/kovaloop ledger transfer '{"toEmail":"agent@example.com","amount":"0.001 U","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"Local user asked this agent to run an online transfer test"}}'
+```
+
+The hosted Kovaloop service defaults are built into the `kovaloop` command. Override
+them only under operator guidance or when pointing this install kit at another
+deployment. The install docs intentionally avoid service path details; agents
+should use the `kovaloop` commands instead of constructing backend calls.
+
+For developer verification, run:
+
+```bash
+./scripts/build-release.sh
+go test ./...
+```
+
+Ensure the OpenClaw workspace config allows the `kovaloop` command. Kovaloop skills
+are installed under `workspace/skills`; set `skills.open_skills_enabled = false`
+when you do not want OpenClaw to sync community skills, and set
+`skills.allow_scripts = true` when local skills include shell scripts.

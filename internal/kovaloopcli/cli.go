@@ -1,0 +1,241 @@
+package kovaloopcli
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/url"
+	"strings"
+)
+
+const usageText = `Kovaloop CLI for ZeroClaw
+
+Usage:
+  kovaloop version
+  kovaloop ledger health
+  kovaloop ledger state
+  kovaloop ledger route '<json-intent>'
+  kovaloop ledger wallet get-or-create '<json>'
+  kovaloop ledger credit AGENT_ID AMOUNT_ATOMIC [reason]
+  kovaloop ledger transfer '{"toEmail":"agent@example.com","amount":"0.001 U"}'
+  kovaloop ledger escrow create '<json>'
+  kovaloop ledger escrow release ESCROW_ID
+  kovaloop ledger escrow refund ESCROW_ID
+  kovaloop claim link
+
+Environment:
+  KOVALOOP_LEDGER_URL             default hosted ledger REST service base URL
+  KOVALOOP_LEDGER_HTTP_URL        optional explicit service base URL for CLI REST calls
+  KOVALOOP_LEDGER_FALLBACK_URL    optional fallback service base URL
+`
+
+func Run(args []string, stdout io.Writer, stderr io.Writer, env EnvMap) int {
+	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
+		fmt.Fprint(stdout, usageText)
+		return 0
+	}
+	if args[0] == "version" || args[0] == "--version" {
+		fmt.Fprintf(stdout, "kovaloop %s\n", CLIVersion)
+		return 0
+	}
+	if args[0] == "claim" {
+		if len(args) == 2 && args[1] == "link" {
+			cfg := ConfigFromEnv(env)
+			profile, err := LoadProfile(ProfilePath(cfg))
+			if err != nil {
+				fmt.Fprintln(stderr, err.Error())
+				return 2
+			}
+			body, err := ClaimPayload(profile)
+			if err != nil {
+				fmt.Fprintln(stderr, err.Error())
+				return 2
+			}
+			var response ClaimResponse
+			if err := postJSON(cfg, "/ledger/claims/link", body, &response); err != nil {
+				fmt.Fprintln(stderr, err.Error())
+				return 1
+			}
+			printClaimResponse(stdout, response)
+			return 0
+		}
+		fmt.Fprint(stderr, usageText)
+		return 2
+	}
+	if args[0] == "ledger" {
+		return runLedger(args[1:], stdout, stderr, ConfigFromEnv(env))
+	}
+	fmt.Fprint(stderr, usageText)
+	return 2
+}
+
+func runLedger(args []string, stdout io.Writer, stderr io.Writer, cfg Config) int {
+	if len(args) == 0 {
+		fmt.Fprint(stderr, usageText)
+		return 2
+	}
+	if len(args) == 1 && isHelpArg(args[0]) {
+		fmt.Fprint(stdout, usageText)
+		return 0
+	}
+	switch args[0] {
+	case "health":
+		if len(args) != 1 {
+			fmt.Fprintln(stderr, "usage: kovaloop ledger health")
+			return 2
+		}
+		body, err := getRaw(cfg, "/health")
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		printRawResponse(stdout, body)
+		return 0
+	case "state":
+		if len(args) != 1 {
+			fmt.Fprintln(stderr, "usage: kovaloop ledger state")
+			return 2
+		}
+		body, err := LedgerState(cfg)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			if strings.Contains(err.Error(), "OpenClaw profile") || strings.Contains(err.Error(), "missing agent_id") {
+				return 2
+			}
+			return 1
+		}
+		printRawResponse(stdout, body)
+		return 0
+	case "route":
+		if len(args) < 2 {
+			fmt.Fprintln(stderr, "usage: kovaloop ledger route '<json-intent>'")
+			return 2
+		}
+		fmt.Fprint(stdout, RoutePaymentIntent(args[1]))
+		return 0
+	case "wallet":
+		return runLedgerWallet(args[1:], stdout, stderr, cfg)
+	case "credit":
+		return runLedgerCredit(args[1:], stdout, stderr, cfg)
+	case "transfer":
+		return runLedgerTransfer(args[1:], stdout, stderr, cfg)
+	case "escrow":
+		return runLedgerEscrow(args[1:], stdout, stderr, cfg)
+	default:
+		fmt.Fprint(stderr, usageText)
+		return 2
+	}
+}
+
+func runLedgerWallet(args []string, stdout io.Writer, stderr io.Writer, cfg Config) int {
+	if len(args) < 2 || args[0] != "get-or-create" {
+		fmt.Fprintln(stderr, `usage: kovaloop ledger wallet get-or-create '{"agentId":"...","agentName":"...","email":"owner@example.com"}'`)
+		return 2
+	}
+	body := json.RawMessage(args[1])
+	if err := validateWalletGetOrCreate(body); err != nil {
+		fmt.Fprintln(stderr, err.Error())
+		return 2
+	}
+	response, err := postRawJSON(cfg, "/ledger/wallets/get-or-create", body)
+	if err != nil {
+		fmt.Fprintln(stderr, err.Error())
+		return 1
+	}
+	printRawResponse(stdout, response)
+	return 0
+}
+
+func validateWalletGetOrCreate(body json.RawMessage) error {
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return fmt.Errorf("wallet get-or-create payload is malformed JSON: %s", err.Error())
+	}
+	email, _ := payload["email"].(string)
+	if strings.TrimSpace(email) == "" {
+		return fmt.Errorf("owner email is required for wallet get-or-create")
+	}
+	return nil
+}
+
+func runLedgerCredit(args []string, stdout io.Writer, stderr io.Writer, cfg Config) int {
+	if len(args) < 2 {
+		fmt.Fprintln(stderr, "usage: kovaloop ledger credit AGENT_ID AMOUNT_ATOMIC [reason]")
+		return 2
+	}
+	reason := "manual credit"
+	if len(args) >= 3 {
+		reason = args[2]
+	}
+	response, err := postRaw(cfg, "/ledger/accounts/"+url.PathEscape(args[0])+"/credit", map[string]string{
+		"amountAtomic": args[1],
+		"reason":       reason,
+	})
+	if err != nil {
+		fmt.Fprintln(stderr, err.Error())
+		return 1
+	}
+	printRawResponse(stdout, response)
+	return 0
+}
+
+func runLedgerEscrow(args []string, stdout io.Writer, stderr io.Writer, cfg Config) int {
+	if len(args) == 0 {
+		fmt.Fprint(stderr, usageText)
+		return 2
+	}
+	switch args[0] {
+	case "create":
+		if len(args) < 2 {
+			fmt.Fprintln(stderr, "usage: kovaloop ledger escrow create '<json>'")
+			return 2
+		}
+		body := json.RawMessage(args[1])
+		if !json.Valid(body) {
+			fmt.Fprintln(stderr, "escrow create payload is malformed JSON")
+			return 2
+		}
+		response, err := postRawJSON(cfg, "/ledger/escrows", body)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		printRawResponse(stdout, response)
+		return 0
+	case "release":
+		if len(args) < 2 {
+			fmt.Fprintln(stderr, "usage: kovaloop ledger escrow release ESCROW_ID")
+			return 2
+		}
+		response, err := postRaw(cfg, "/ledger/escrows/"+url.PathEscape(args[1])+"/release", map[string]any{})
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		printRawResponse(stdout, response)
+		return 0
+	case "refund":
+		if len(args) < 2 {
+			fmt.Fprintln(stderr, "usage: kovaloop ledger escrow refund ESCROW_ID")
+			return 2
+		}
+		response, err := postRaw(cfg, "/ledger/escrows/"+url.PathEscape(args[1])+"/refund", map[string]any{})
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return 1
+		}
+		printRawResponse(stdout, response)
+		return 0
+	default:
+		fmt.Fprint(stderr, usageText)
+		return 2
+	}
+}
+
+func printRawResponse(w io.Writer, body []byte) {
+	fmt.Fprint(w, string(body))
+}
+
+func isHelpArg(arg string) bool {
+	return arg == "help" || arg == "-h" || arg == "--help"
+}
