@@ -5,27 +5,44 @@ KOVALOOP_INSTALL_BASE_URL="${KOVALOOP_INSTALL_BASE_URL:-https://raw.githubuserco
 KOVALOOP_INSTALL_BIN_BASE_URL="${KOVALOOP_INSTALL_BIN_BASE_URL:-https://github.com/arthurxuwei/kovaloop/releases/latest/download}"
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-discover_workspaces() {
-  if [[ -n "${OPENCLAW_WORKSPACE_DIR:-}" ]]; then
-    printf '%s\n' "$OPENCLAW_WORKSPACE_DIR"
-    return
-  fi
-
+discover_runtime_root() {
   local search_dir="$PWD"
   if [[ "$search_dir" == /private/var/* && -d "${search_dir#/private}" ]]; then
     search_dir="${search_dir#/private}"
   fi
+  printf '%s\n' "$search_dir"
+}
+
+install_discovered_runtimes() {
+  if [[ -n "${OPENCLAW_WORKSPACE_DIR:-}" ]]; then
+    install_openclaw_workspace "$OPENCLAW_WORKSPACE_DIR"
+    return
+  fi
+
+  if [[ -n "${HERMES_CONFIG_DIR:-}" ]]; then
+    install_hermes_config "$HERMES_CONFIG_DIR"
+    return
+  fi
+
+  local search_dir
+  search_dir="$(discover_runtime_root)"
 
   local found=0
   for workspace in "$search_dir"/runtime-openclaw-*/workspace; do
     if [[ -d "$workspace" ]]; then
       found=1
-      printf '%s\n' "$workspace"
+      install_openclaw_workspace "$workspace"
+    fi
+  done
+  for config in "$search_dir"/runtime-hermes-*/config; do
+    if [[ -d "$config" ]]; then
+      found=1
+      install_hermes_config "$config"
     fi
   done
 
   if [[ "$found" -eq 0 ]]; then
-    echo "No OpenClaw workspace found. Set OPENCLAW_WORKSPACE_DIR=/path/to/workspace." >&2
+    echo "No OpenClaw workspace or Hermes config found. Set OPENCLAW_WORKSPACE_DIR=/path/to/workspace or HERMES_CONFIG_DIR=/path/to/runtime-hermes-x/config." >&2
     return 2
   fi
 }
@@ -121,14 +138,16 @@ shell_quote() {
   printf '%q' "$1"
 }
 
-install_workspace() {
-  local workspace="$1"
-  local skills_dest="$workspace/skills"
-  local bin_dest="$workspace/.local/bin"
-  local quoted_workspace
+install_runtime() {
+  local label="$1"
+  local root="$2"
+  local skills_dest="$3"
+  local bin_dest="$4"
+  local env_name="$5"
+  local quoted_root
   local quoted_kovaloop
 
-  quoted_workspace="$(shell_quote "$workspace")"
+  quoted_root="$(shell_quote "$root")"
   quoted_kovaloop="$(shell_quote "$bin_dest/kovaloop")"
 
   mkdir -p "$skills_dest" "$bin_dest"
@@ -143,23 +162,30 @@ install_workspace() {
   cat <<EOF
 Kovaloop installed successfully.
 
-OpenClaw workspace: $workspace
+${label}: $root
 CLI:                $bin_dest/kovaloop
 Skills:             $skills_dest
 EOF
 
-  if OPENCLAW_WORKSPACE_DIR="$workspace" "$bin_dest/kovaloop" claim link; then
+  if env "$env_name=$root" "$bin_dest/kovaloop" claim link; then
     return 0
   fi
 
   cat <<EOF
-Claim link unavailable for $workspace.
+Claim link unavailable for $root.
 Retry:
-OPENCLAW_WORKSPACE_DIR=$quoted_workspace $quoted_kovaloop claim link
+$env_name=$quoted_root $quoted_kovaloop claim link
 EOF
 }
 
-workspaces="$(discover_workspaces)" || exit $?
-while IFS= read -r workspace; do
-  install_workspace "$workspace"
-done <<< "$workspaces"
+install_openclaw_workspace() {
+  local workspace="$1"
+  install_runtime "OpenClaw workspace" "$workspace" "$workspace/skills" "$workspace/.local/bin" "OPENCLAW_WORKSPACE_DIR"
+}
+
+install_hermes_config() {
+  local config="$1"
+  install_runtime "Hermes config" "$config" "$config/skills" "$config/bin" "HERMES_CONFIG_DIR"
+}
+
+install_discovered_runtimes

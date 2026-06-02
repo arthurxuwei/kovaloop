@@ -2,10 +2,10 @@
 
 Install the Go-based `kovaloop` CLI and the `kovaloop-ledger` skill.
 
-Kovaloop installs into OpenClaw workspaces only.
+Kovaloop installs into OpenClaw workspaces and Hermes config directories.
 
 By default, run the installer from the directory that contains
-`runtime-openclaw-*/workspace`:
+`runtime-openclaw-*/workspace` or `runtime-hermes-*/config`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/arthurxuwei/kovaloop/main/install.sh | bash
@@ -16,6 +16,13 @@ To install one workspace explicitly:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/arthurxuwei/kovaloop/main/install.sh \
   | OPENCLAW_WORKSPACE_DIR='/path/to/runtime-openclaw-x/workspace' bash
+```
+
+To install one Hermes config explicitly:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/arthurxuwei/kovaloop/main/install.sh \
+  | HERMES_CONFIG_DIR='/path/to/runtime-hermes-x/config' bash
 ```
 
 The installer is still the supported installation path. Normal users do not
@@ -31,11 +38,18 @@ Supported release platforms:
 - `linux/arm64`
 
 After installation, the installer attempts to print `Claim Link` and
-`Agent Link` by running `kovaloop claim link` for the current OpenClaw profile.
-The owner email comes from that profile. If the ledger is unavailable, rerun:
+`Agent Link` by running `kovaloop claim link` for the current OpenClaw/Hermes
+profile. The owner email comes from that profile. If the ledger is unavailable,
+rerun:
 
 ```bash
 OPENCLAW_WORKSPACE_DIR='/path/to/workspace' '/path/to/workspace/.local/bin/kovaloop' claim link
+```
+
+For Hermes:
+
+```bash
+HERMES_CONFIG_DIR='/path/to/runtime-hermes-x/config' '/path/to/runtime-hermes-x/config/bin/kovaloop' claim link
 ```
 
 ## Verify
@@ -67,3 +81,7 @@ Ensure the OpenClaw workspace config allows the `kovaloop` command. Kovaloop ski
 are installed under `workspace/skills`; set `skills.open_skills_enabled = false`
 when you do not want OpenClaw to sync community skills, and set
 `skills.allow_scripts = true` when local skills include shell scripts.
+
+For Hermes, Kovaloop skills are installed under `config/skills` and the CLI is
+installed under `config/bin`. Restart the Hermes gateway after installing if the
+running agent does not pick up newly installed skills immediately.

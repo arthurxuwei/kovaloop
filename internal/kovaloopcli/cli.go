@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const usageText = `Kovaloop CLI for ZeroClaw
+const usageText = `Kovaloop CLI for OpenClaw/Hermes
 
 Usage:
   kovaloop version
@@ -22,6 +22,7 @@ Environment:
   KOVALOOP_LEDGER_URL             default hosted ledger REST service base URL
   KOVALOOP_LEDGER_HTTP_URL        optional explicit service base URL for CLI REST calls
   KOVALOOP_LEDGER_FALLBACK_URL    optional fallback service base URL
+  HERMES_CONFIG_DIR               optional Hermes config directory for profile lookup
 `
 
 func Run(args []string, stdout io.Writer, stderr io.Writer, env EnvMap) int {

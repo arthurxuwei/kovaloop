@@ -34,6 +34,68 @@ func TestProfilePathUsesWorkspaceBeforeWorkingDirectory(t *testing.T) {
 	}
 }
 
+func TestProfilePathUsesHermesConfigAfterOpenClawWorkspace(t *testing.T) {
+	cfg := Config{
+		WorkspaceDir:    "/workspace",
+		HermesConfigDir: "/hermes",
+		WorkingDir:      "/cwd",
+	}
+
+	got := ProfilePath(cfg)
+	want := filepath.Join("/workspace", ".eigenflux", "servers", "eigenflux", "profile.json")
+	if got != want {
+		t.Fatalf("ProfilePath = %q, want %q", got, want)
+	}
+}
+
+func TestProfilePathUsesHermesConfigProfileWhenPresent(t *testing.T) {
+	dir := t.TempDir()
+	profilePath := filepath.Join(dir, ".eigenflux", "servers", "eigenflux", "profile.json")
+	if err := os.MkdirAll(filepath.Dir(profilePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(profilePath, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := ProfilePath(Config{HermesConfigDir: dir, WorkingDir: "/cwd"})
+
+	if got != profilePath {
+		t.Fatalf("ProfilePath = %q, want %q", got, profilePath)
+	}
+}
+
+func TestProfilePathFallsBackToHermesWorkspaceProfile(t *testing.T) {
+	dir := t.TempDir()
+	profilePath := filepath.Join(dir, "workspace", ".eigenflux", "servers", "eigenflux", "profile.json")
+	if err := os.MkdirAll(filepath.Dir(profilePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(profilePath, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := ProfilePath(Config{HermesConfigDir: dir, WorkingDir: "/cwd"})
+
+	if got != profilePath {
+		t.Fatalf("ProfilePath = %q, want %q", got, profilePath)
+	}
+}
+
+func TestProfilePathFallsBackToHermesProfileJSON(t *testing.T) {
+	dir := t.TempDir()
+	profilePath := filepath.Join(dir, "profile.json")
+	if err := os.WriteFile(profilePath, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := ProfilePath(Config{HermesConfigDir: dir, WorkingDir: "/cwd"})
+
+	if got != profilePath {
+		t.Fatalf("ProfilePath = %q, want %q", got, profilePath)
+	}
+}
+
 func TestProfilePathUsesCurrentDirectoryProfileWhenPresent(t *testing.T) {
 	dir := t.TempDir()
 	profilePath := filepath.Join(dir, ".eigenflux", "servers", "eigenflux", "profile.json")

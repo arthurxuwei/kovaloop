@@ -2,7 +2,7 @@ package kovaloopcli
 
 import "os"
 
-const CLIVersion = "2026.06.02.1"
+const CLIVersion = "2026.06.02.2"
 
 type EnvMap map[string]string
 
@@ -14,6 +14,7 @@ func ProcessEnv() EnvMap {
 		"KOVALOOP_LEDGER_FALLBACK_URL",
 		"KOVALOOP_AGENT_PROFILE_PATH",
 		"OPENCLAW_WORKSPACE_DIR",
+		"HERMES_CONFIG_DIR",
 		"PWD",
 	} {
 		if value, ok := os.LookupEnv(key); ok {
@@ -29,11 +30,12 @@ func ProcessEnv() EnvMap {
 }
 
 type Config struct {
-	LedgerURL      string
-	LedgerFallback string
-	AgentProfile   string
-	WorkspaceDir   string
-	WorkingDir     string
+	LedgerURL       string
+	LedgerFallback  string
+	AgentProfile    string
+	WorkspaceDir    string
+	HermesConfigDir string
+	WorkingDir      string
 }
 
 func ConfigFromEnv(env EnvMap) Config {
@@ -45,10 +47,11 @@ func ConfigFromEnv(env EnvMap) Config {
 		ledgerURL = "https://ledger.kovaloop.ai"
 	}
 	return Config{
-		LedgerURL:      ledgerURL,
-		LedgerFallback: env["KOVALOOP_LEDGER_FALLBACK_URL"],
-		AgentProfile:   env["KOVALOOP_AGENT_PROFILE_PATH"],
-		WorkspaceDir:   env["OPENCLAW_WORKSPACE_DIR"],
-		WorkingDir:     env["PWD"],
+		LedgerURL:       ledgerURL,
+		LedgerFallback:  env["KOVALOOP_LEDGER_FALLBACK_URL"],
+		AgentProfile:    env["KOVALOOP_AGENT_PROFILE_PATH"],
+		WorkspaceDir:    env["OPENCLAW_WORKSPACE_DIR"],
+		HermesConfigDir: env["HERMES_CONFIG_DIR"],
+		WorkingDir:      env["PWD"],
 	}
 }

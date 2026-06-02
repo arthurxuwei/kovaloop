@@ -1,7 +1,7 @@
 ---
 name: kovaloop-ledger
 description: |
-  Use when the local ZeroClaw/OpenClaw agent needs Kovaloop Agent Wallet or ledger help:
+  Use when the local ZeroClaw/OpenClaw/Hermes agent needs Kovaloop Agent Wallet or ledger help:
   install/reinstall follow-up, Agent Wallet onboarding, claimCode, claim code, claim link,
   agent link, 领取钱包, 绑定钱包, 钱包链接, check balance, visible balance, 查余额,
   到账了吗, 入账了吗, USDC, Circle-sourced balance, funding/onramp state, direct
@@ -20,7 +20,7 @@ metadata:
 
 # Kovaloop — Ledger
 
-Use the local `kovaloop` CLI as the only command entrypoint for Kovaloop ledger operations from ZeroClaw/OpenClaw.
+Use the local `kovaloop` CLI as the only command entrypoint for Kovaloop ledger operations from ZeroClaw/OpenClaw/Hermes.
 
 ## First Checks
 
@@ -46,7 +46,7 @@ Detailed instructions are split into references. Load only what the current requ
 - Agent-visible available balance is sourced from Circle by the service. Do not label any balance as "Ledger available balance".
 - `kovaloop ledger state` is scoped to the current profile agent id; never report balances for other ledger accounts.
 - Never invent balances, wallet state, settlement state, claim codes, or links. Run the relevant command.
-- If installation has just completed, a reinstall has just completed, or the user asks for `claimCode`, run `kovaloop claim link`; the owner email comes from the current OpenClaw profile.
+- If installation has just completed, a reinstall has just completed, or the user asks for `claimCode`, run `kovaloop claim link`; the owner email comes from the current OpenClaw/Hermes profile.
 - Any funding or payment must route payment intent first. After routing, use only the returned `allowedTools` / command family.
 - If routing returns `needs_clarification`, ask the user before funding or paying.
 - Direct transfer is a high-risk value-changing action. Use `kovaloop ledger transfer` only after routing returns `agent_wallet_transfer` and only when the local user explicitly authorizes a real payment or online transfer test in the current local session.

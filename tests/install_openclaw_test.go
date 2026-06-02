@@ -83,6 +83,14 @@ func createOpenClawWorkspaces(t *testing.T, root string) {
 	}
 }
 
+func createHermesConfigs(t *testing.T, root string) {
+	t.Helper()
+	for _, name := range []string{"runtime-hermes-x", "runtime-hermes-y"} {
+		profile := filepath.Join(root, name, "config", ".eigenflux", "servers", "eigenflux", "profile.json")
+		writeFile(t, profile, `{"email":"owner@example.com","agent_id":"`+name+`","agent_name":"`+name+`"}`)
+	}
+}
+
 func envValue(value string) *string {
 	return &value
 }
@@ -248,6 +256,48 @@ func TestInstallIntoAllOpenClawWorkspacesAndKeepsLinkFailureNonfatal(t *testing.
 	}
 }
 
+func TestInstallIntoAllHermesConfigsAndKeepsLinkFailureNonfatal(t *testing.T) {
+	root := t.TempDir()
+	createHermesConfigs(t, root)
+	for _, name := range []string{"runtime-hermes-x", "runtime-hermes-y"} {
+		config := filepath.Join(root, name, "config")
+		writeFile(t, filepath.Join(config, "bin", "chief"), "old chief")
+		writeFile(t, filepath.Join(config, "skills", "chief-ledger", "SKILL.md"), "old chief skill")
+	}
+
+	result := runInstall(t, root, nil)
+	if result.code != 0 {
+		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
+	}
+	wantBytes := testAssetBytes(t)
+	for _, name := range []string{"runtime-hermes-x", "runtime-hermes-y"} {
+		config := filepath.Join(root, name, "config")
+		kovaloop := filepath.Join(config, "bin", "kovaloop")
+		gotBytes, err := os.ReadFile(kovaloop)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(gotBytes, wantBytes) {
+			t.Fatalf("%s binary bytes mismatch", kovaloop)
+		}
+		if _, err := os.Stat(filepath.Join(config, "skills", "kovaloop-ledger", "SKILL.md")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(config, "skills", "chief-ledger")); !os.IsNotExist(err) {
+			t.Fatalf("old chief skill was not removed: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(config, "bin", "chief")); !os.IsNotExist(err) {
+			t.Fatalf("old chief binary was not removed: %v", err)
+		}
+		if !strings.Contains(result.stdout, "HERMES_CONFIG_DIR="+config) {
+			t.Fatalf("stdout missing Hermes retry: %s", result.stdout)
+		}
+	}
+	if !strings.Contains(result.stdout, "Hermes config:") {
+		t.Fatalf("stdout missing Hermes label: %s", result.stdout)
+	}
+}
+
 func runCommand(t *testing.T, env []string, cwd string, name string, args ...string) commandResult {
 	t.Helper()
 	cmd := exec.Command(name, args...)
@@ -283,6 +333,24 @@ func TestInstallExplicitOpenClawWorkspaceInstallsOnlyThatWorkspace(t *testing.T)
 	}
 }
 
+func TestInstallExplicitHermesConfigInstallsOnlyThatConfig(t *testing.T) {
+	root := t.TempDir()
+	createHermesConfigs(t, root)
+	target := filepath.Join(root, "runtime-hermes-x", "config")
+
+	result := runInstall(t, root, map[string]*string{"HERMES_CONFIG_DIR": envValue(target)})
+	if result.code != 0 {
+		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
+	}
+	if _, err := os.Stat(filepath.Join(target, "bin", "kovaloop")); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(root, "runtime-hermes-y", "config")
+	if _, err := os.Stat(filepath.Join(other, "bin", "kovaloop")); !os.IsNotExist(err) {
+		t.Fatalf("other Hermes config kovaloop exists or stat failed: %v", err)
+	}
+}
+
 func TestInstallPrintsClaimCodeAndLinkWhenLedgerIsAvailable(t *testing.T) {
 	root := t.TempDir()
 	createOpenClawWorkspaces(t, root)
@@ -312,14 +380,40 @@ func TestInstallPrintsClaimCodeAndLinkWhenLedgerIsAvailable(t *testing.T) {
 	}
 }
 
-func TestInstallFailsWhenNoOpenClawWorkspaceExists(t *testing.T) {
+func TestInstallPrintsClaimCodeAndLinkForHermesWhenLedgerIsAvailable(t *testing.T) {
+	root := t.TempDir()
+	createHermesConfigs(t, root)
+	stub := &claimLedgerStub{}
+	server := httptest.NewServer(stub)
+	t.Cleanup(server.Close)
+	target := filepath.Join(root, "runtime-hermes-x", "config")
+
+	result := runInstall(t, root, map[string]*string{
+		"HERMES_CONFIG_DIR":        envValue(target),
+		"KOVALOOP_LEDGER_HTTP_URL": envValue(server.URL),
+	})
+	if result.code != 0 {
+		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
+	}
+	assertJSONMapEqual(t, stub.postedClaims()[0], map[string]any{
+		"agentId":          "runtime-hermes-x",
+		"agentName":        "runtime-hermes-x",
+		"email":            "owner@example.com",
+		"agentDescription": "",
+	})
+	if !strings.Contains(result.stdout, "Claim Code: clm_runtime-hermes-x") {
+		t.Fatalf("stdout=%s", result.stdout)
+	}
+}
+
+func TestInstallFailsWhenNoSupportedRuntimeExists(t *testing.T) {
 	root := t.TempDir()
 	result := runInstall(t, root, nil)
 
 	if result.code != 2 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
-	if !strings.Contains(result.stderr, "No OpenClaw workspace found") {
+	if !strings.Contains(result.stderr, "No OpenClaw workspace or Hermes config found") {
 		t.Fatalf("stderr=%q", result.stderr)
 	}
 }

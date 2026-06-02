@@ -9,8 +9,8 @@ Cause: Ledger unavailable, missing profile, missing owner email, or missing agen
 Action:
 
 1. If this happened during install, tell the user installation succeeded but claim link generation did not.
-2. Retry with the command printed by the installer, preserving `OPENCLAW_WORKSPACE_DIR`.
-3. If profile email or agent id is missing, ask the user to complete or repair the OpenClaw/EigenFlux profile.
+2. Retry with the command printed by the installer, preserving `OPENCLAW_WORKSPACE_DIR` for OpenClaw or `HERMES_CONFIG_DIR` for Hermes.
+3. If profile email or agent id is missing, ask the user to complete or repair the OpenClaw/EigenFlux or Hermes profile.
 
 ## Health Fails
 

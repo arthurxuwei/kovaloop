@@ -32,6 +32,18 @@ func ProfilePath(cfg Config) string {
 	if cfg.WorkspaceDir != "" {
 		return filepath.Join(cfg.WorkspaceDir, ".eigenflux", "servers", "eigenflux", "profile.json")
 	}
+	if cfg.HermesConfigDir != "" {
+		for _, candidate := range []string{
+			filepath.Join(cfg.HermesConfigDir, ".eigenflux", "servers", "eigenflux", "profile.json"),
+			filepath.Join(cfg.HermesConfigDir, "workspace", ".eigenflux", "servers", "eigenflux", "profile.json"),
+			filepath.Join(cfg.HermesConfigDir, "profile.json"),
+		} {
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate
+			}
+		}
+		return filepath.Join(cfg.HermesConfigDir, ".eigenflux", "servers", "eigenflux", "profile.json")
+	}
 	if cfg.WorkingDir == "" {
 		cfg.WorkingDir = "."
 	}

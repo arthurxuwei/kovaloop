@@ -33,7 +33,7 @@ func TestUnknownCommandPrintsUsageAndReturnsTwo(t *testing.T) {
 	if stdout.String() != "" {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
-	if !bytes.Contains(stderr.Bytes(), []byte("Kovaloop CLI for ZeroClaw")) {
+	if !bytes.Contains(stderr.Bytes(), []byte("Kovaloop CLI for OpenClaw/Hermes")) {
 		t.Fatalf("usage missing from stderr: %q", stderr.String())
 	}
 }
@@ -51,7 +51,7 @@ func TestLedgerHelpPrintsUsageToStdout(t *testing.T) {
 			if exitCode != 0 {
 				t.Fatalf("exit code = %d", exitCode)
 			}
-			if !bytes.Contains(stdout.Bytes(), []byte("Kovaloop CLI for ZeroClaw")) {
+			if !bytes.Contains(stdout.Bytes(), []byte("Kovaloop CLI for OpenClaw/Hermes")) {
 				t.Fatalf("usage missing from stdout: %q", stdout.String())
 			}
 			if stderr.String() != "" {
@@ -116,7 +116,7 @@ func TestBadArgsPrintUsageToStderr(t *testing.T) {
 			if stdout.String() != "" {
 				t.Fatalf("stdout = %q", stdout.String())
 			}
-			if !bytes.Contains(stderr.Bytes(), []byte("Kovaloop CLI for ZeroClaw")) {
+			if !bytes.Contains(stderr.Bytes(), []byte("Kovaloop CLI for OpenClaw/Hermes")) {
 				t.Fatalf("usage missing from stderr: %q", stderr.String())
 			}
 		})

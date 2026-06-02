@@ -16,7 +16,7 @@ Use health before deeper debugging when the user asks whether the ledger service
 kovaloop ledger state
 ```
 
-This command reads the local OpenClaw profile and returns the ledger view scoped to the current agent. If no profile agent id is available, do not treat state as global account data.
+This command reads the local OpenClaw/Hermes profile and returns the ledger view scoped to the current agent. If no profile agent id is available, do not treat state as global account data.
 
 ## Balance Rules
 
