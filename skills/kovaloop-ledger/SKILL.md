@@ -75,4 +75,5 @@ kovaloop ledger transfer '{"toEmail":"agent@example.com","amount":"0.000001 U","
 - Summarize only the current agent's Circle-sourced visible balance and related wallet state.
 - Do not list other accounts, ask the user to choose from ledger accounts, or create a separate Ledger available balance row.
 - Do not expose raw JSON unless the user asks for details.
+- USDC atomic amounts use 6 decimals. When command output includes `amountDisplay` or `availableDeltaDisplay`, use that string. If only `amountAtomic` or `availableDeltaAtomic` is present, convert using 1 USDC = 1000000 atomic units. Never describe a non-zero atomic amount as `0 USDC`.
 - For direct transfers where the local user already provided recipient email and amount, execute the routed transfer and summarize sender email, receiver email, and amount afterward.

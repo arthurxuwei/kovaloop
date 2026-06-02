@@ -67,6 +67,24 @@ func TestKovaloopLedgerSkillDocumentsPrivateRiskControls(t *testing.T) {
 	}
 }
 
+func TestKovaloopLedgerSkillPreservesAtomicUSDCPrecision(t *testing.T) {
+	skill := readRepoFile(t, "skills", "kovaloop-ledger", "SKILL.md")
+	balanceState := readRepoFile(t, "skills", "kovaloop-ledger", "references", "balance-state.md")
+	combined := skill + "\n" + balanceState
+
+	for _, want := range []string{
+		"amountDisplay",
+		"availableDeltaDisplay",
+		"1 USDC = 1000000 atomic units",
+		"0.000001 USDC",
+		"Never report a non-zero atomic amount as `0 USDC`",
+	} {
+		if !strings.Contains(combined, want) {
+			t.Fatalf("skill docs missing atomic precision rule %q", want)
+		}
+	}
+}
+
 func frontmatterDescription(t *testing.T, skill string) string {
 	t.Helper()
 	lines := strings.Split(skill, "\n")

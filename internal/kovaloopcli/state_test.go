@@ -25,7 +25,7 @@ func TestLedgerStateAggregatesProfileScopedEndpoints(t *testing.T) {
 		case "/ledger/accounts/agent%2Fone":
 			fmt.Fprint(w, `{"account":{"agentId":"agent/one","availableAtomic":"999","lockedAtomic":"100","circleUsdcBalance":"12.34","nested":{"availableAtomic":"111"}}}`)
 		case "/ledger/accounts/agent%2Fone/entries?limit=500":
-			fmt.Fprint(w, `{"entries":[{"id":"entry_1","amountAtomic":"100","availableAtomic":"222","metadata":{"availableAtomic":"333"}}]}`)
+			fmt.Fprint(w, `{"entries":[{"id":"entry_1","amountAtomic":"100","availableAtomic":"222","metadata":{"availableAtomic":"333"}},{"id":"entry_micro_in","availableDeltaAtomic":"10"},{"id":"entry_micro_out","availableDeltaAtomic":"-10"}]}`)
 		case "/ledger/onramp-sessions?agentId=agent%2Fone&limit=500":
 			fmt.Fprint(w, `{"onrampSessions":[{"id":"onramp_1","status":"pending","availableAtomic":"666","provider":{"availableAtomic":"777"}}]}`)
 		default:
@@ -66,8 +66,17 @@ func TestLedgerStateAggregatesProfileScopedEndpoints(t *testing.T) {
 	if len(state.Accounts) != 1 || state.Accounts[0]["lockedAtomic"] != "100" || state.Accounts[0]["circleUsdcBalance"] != "12.34" {
 		t.Fatalf("accounts = %#v", state.Accounts)
 	}
-	if len(state.Entries) != 1 || state.Entries[0]["id"] != "entry_1" {
+	if len(state.Entries) != 3 || state.Entries[0]["id"] != "entry_1" {
 		t.Fatalf("entries = %#v", state.Entries)
+	}
+	if state.Entries[0]["amountDisplay"] != "0.000100" {
+		t.Fatalf("amountDisplay = %#v", state.Entries[0])
+	}
+	if state.Entries[1]["amountDisplay"] != "0.000010" || state.Entries[1]["availableDeltaDisplay"] != "0.000010" {
+		t.Fatalf("micro in display = %#v", state.Entries[1])
+	}
+	if state.Entries[2]["amountDisplay"] != "0.000010" || state.Entries[2]["availableDeltaDisplay"] != "-0.000010" {
+		t.Fatalf("micro out display = %#v", state.Entries[2])
 	}
 	if len(state.OnrampSessions) != 1 || state.OnrampSessions[0]["id"] != "onramp_1" {
 		t.Fatalf("onrampSessions = %#v", state.OnrampSessions)

@@ -3,7 +3,9 @@ package kovaloopcli
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/url"
+	"strings"
 )
 
 type ledgerAccountResponse struct {
@@ -77,6 +79,7 @@ func LedgerState(cfg Config) ([]byte, error) {
 	sanitizeAvailableAtomic(state.Accounts)
 	sanitizeAvailableAtomic(state.Entries)
 	sanitizeAvailableAtomic(state.OnrampSessions)
+	addUSDCDisplayFields(state.Entries)
 	return json.Marshal(state)
 }
 
@@ -96,4 +99,72 @@ func sanitizeAvailableAtomic(value any) {
 			sanitizeAvailableAtomic(child)
 		}
 	}
+}
+
+func addUSDCDisplayFields(entries []map[string]any) {
+	for _, entry := range entries {
+		if _, exists := entry["amountDisplay"]; !exists {
+			if amountAtomic, ok := stringField(entry, "amountAtomic"); ok {
+				if display, ok := formatAtomicUSDC(amountAtomic, true); ok {
+					entry["amountDisplay"] = display
+				}
+			} else if availableDeltaAtomic, ok := stringField(entry, "availableDeltaAtomic"); ok {
+				if display, ok := formatAtomicUSDC(availableDeltaAtomic, true); ok {
+					entry["amountDisplay"] = display
+				}
+			}
+		}
+		if _, exists := entry["availableDeltaDisplay"]; !exists {
+			if availableDeltaAtomic, ok := stringField(entry, "availableDeltaAtomic"); ok {
+				if display, ok := formatAtomicUSDC(availableDeltaAtomic, false); ok {
+					entry["availableDeltaDisplay"] = display
+				}
+			}
+		}
+	}
+}
+
+func stringField(record map[string]any, key string) (string, bool) {
+	value, ok := record[key]
+	if !ok {
+		return "", false
+	}
+	switch typed := value.(type) {
+	case string:
+		text := strings.TrimSpace(typed)
+		return text, text != ""
+	case float64:
+		if typed != float64(int64(typed)) {
+			return "", false
+		}
+		return fmt.Sprintf("%.0f", typed), true
+	default:
+		return "", false
+	}
+}
+
+func formatAtomicUSDC(value string, absolute bool) (string, bool) {
+	text := strings.TrimSpace(value)
+	if text == "" {
+		return "", false
+	}
+	negative := strings.HasPrefix(text, "-")
+	if negative || strings.HasPrefix(text, "+") {
+		text = text[1:]
+	}
+	if text == "" {
+		return "", false
+	}
+	atomic := new(big.Int)
+	if _, ok := atomic.SetString(text, 10); !ok {
+		return "", false
+	}
+	oneUSDC := big.NewInt(1_000_000)
+	whole := new(big.Int).Quo(atomic, oneUSDC)
+	fraction := new(big.Int).Rem(atomic, oneUSDC)
+	prefix := ""
+	if negative && !absolute && atomic.Sign() != 0 {
+		prefix = "-"
+	}
+	return fmt.Sprintf("%s%s.%06d", prefix, whole.String(), fraction.Int64()), true
 }
