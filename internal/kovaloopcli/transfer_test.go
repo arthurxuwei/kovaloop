@@ -13,7 +13,7 @@ import (
 )
 
 func TestLedgerTransferPostsValidatedPayload(t *testing.T) {
-	profilePath := writeTransferProfile(t, `{"email":" Sender@Example.com ","agent_id":"agent_sender"}`)
+	profilePath := writeTransferProfile(t, `{"email":" Sender@Example.com ","agent_id":" agent_sender "}`)
 
 	var posted map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +30,7 @@ func TestLedgerTransferPostsValidatedPayload(t *testing.T) {
 	}))
 	defer server.Close()
 
-	payload := `{"fromEmail":"spoof@example.com","toEmail":" receiver@example.com ","amount":"1.5 USDC","reason":"spoofed reason","paymentContext":{"source":"local_user_request","userApproved":true,"reason":" thanks "}}`
+	payload := `{"toAgentId":" agent_receiver ","amount":"1.5 USDC","reason":"spoofed reason","paymentContext":{"source":"local_user_request","userApproved":true,"reason":" thanks "}}`
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"ledger", "transfer", payload}, &stdout, &stderr, EnvMap{
@@ -45,8 +45,8 @@ func TestLedgerTransferPostsValidatedPayload(t *testing.T) {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	want := map[string]any{
-		"fromEmail":    "sender@example.com",
-		"toEmail":      "receiver@example.com",
+		"fromAgentId":  "agent_sender",
+		"toAgentId":    "agent_receiver",
 		"amountAtomic": "1500000",
 		"reason":       "thanks",
 	}
@@ -67,80 +67,90 @@ func TestLedgerTransferValidationErrors(t *testing.T) {
 		wantStderr string
 	}{
 		{
-			name:       "rejects internal agent ids",
-			payload:    `{"fromAgentId":"agent_sender","toEmail":"receiver@example.com","amount":"1000","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
-			wantStderr: "fromAgentId/toAgentId are internal",
+			name:       "rejects explicit sender agent id",
+			payload:    `{"fromAgentId":"agent_spoof","toAgentId":"agent_receiver","amount":"1000","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
+			wantStderr: "fromAgentId is resolved from the current profile",
 		},
 		{
-			name:       "requires recipient email",
+			name:       "rejects legacy recipient email",
+			payload:    `{"toEmail":"receiver@example.com","amount":"1000","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
+			wantStderr: "fromEmail/toEmail are no longer accepted",
+		},
+		{
+			name:       "rejects legacy sender email",
+			payload:    `{"fromEmail":"sender@example.com","toAgentId":"agent_receiver","amount":"1000","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
+			wantStderr: "fromEmail/toEmail are no longer accepted",
+		},
+		{
+			name:       "requires recipient agent id",
 			payload:    `{"amount":"1000","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
-			wantStderr: "recipient email is required",
+			wantStderr: "recipient agent id is required via toAgentId",
 		},
 		{
 			name:       "requires amount",
-			payload:    `{"toEmail":"receiver@example.com","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
+			payload:    `{"toAgentId":"agent_receiver","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
 			wantStderr: "amount is required",
 		},
 		{
 			name:       "rejects invalid amount",
-			payload:    `{"toEmail":"receiver@example.com","amount":"1 potato","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
+			payload:    `{"toAgentId":"agent_receiver","amount":"1 potato","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
 			wantStderr: "invalid amount",
 		},
 		{
 			name:       "rejects zero amount",
-			payload:    `{"toEmail":"receiver@example.com","amount":"0","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
+			payload:    `{"toAgentId":"agent_receiver","amount":"0","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
 			wantStderr: "amount must be greater than zero",
 		},
 		{
 			name:       "rejects negative amount",
-			payload:    `{"toEmail":"receiver@example.com","amount":"-1","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
+			payload:    `{"toAgentId":"agent_receiver","amount":"-1","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
 			wantStderr: "amount must be greater than zero",
 		},
 		{
 			name:       "rejects sub atomic decimal",
-			payload:    `{"toEmail":"receiver@example.com","amount":"0.0000001 USDC","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
+			payload:    `{"toAgentId":"agent_receiver","amount":"0.0000001 USDC","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
 			wantStderr: "sub-atomic",
 		},
 		{
 			name:       "requires payment context object",
-			payload:    `{"toEmail":"receiver@example.com","amount":"1000"}`,
+			payload:    `{"toAgentId":"agent_receiver","amount":"1000"}`,
 			wantStderr: "transfer requires paymentContext",
 		},
 		{
 			name:       "rejects payment context non object",
-			payload:    `{"toEmail":"receiver@example.com","amount":"1000","paymentContext":"approved"}`,
+			payload:    `{"toAgentId":"agent_receiver","amount":"1000","paymentContext":"approved"}`,
 			wantStderr: "paymentContext must be an object",
 		},
 		{
 			name:       "rejects unsupported payment source",
-			payload:    `{"toEmail":"receiver@example.com","amount":"1000","paymentContext":{"source":"remote","userApproved":true,"reason":"test"}}`,
+			payload:    `{"toAgentId":"agent_receiver","amount":"1000","paymentContext":{"source":"remote","userApproved":true,"reason":"test"}}`,
 			wantStderr: "paymentContext.source must be local_user_request or local_user_test",
 		},
 		{
 			name:       "requires boolean user approved",
-			payload:    `{"toEmail":"receiver@example.com","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":"true","reason":"test"}}`,
+			payload:    `{"toAgentId":"agent_receiver","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":"true","reason":"test"}}`,
 			wantStderr: "paymentContext.userApproved must be true",
 		},
 		{
 			name:       "rejects false user approved",
-			payload:    `{"toEmail":"receiver@example.com","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":false,"reason":"test"}}`,
+			payload:    `{"toAgentId":"agent_receiver","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":false,"reason":"test"}}`,
 			wantStderr: "paymentContext.userApproved must be true",
 		},
 		{
 			name:       "requires reason",
-			payload:    `{"toEmail":"receiver@example.com","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":true,"reason":" "}}`,
+			payload:    `{"toAgentId":"agent_receiver","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":true,"reason":" "}}`,
 			wantStderr: "paymentContext.reason is required",
 		},
 		{
-			name:       "requires sender email",
-			profile:    `{"agent_id":"agent_sender"}`,
-			payload:    `{"toEmail":"receiver@example.com","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`,
-			wantStderr: "current OpenClaw profile is missing email",
+			name:       "requires sender agent id",
+			profile:    `{"email":"sender@example.com"}`,
+			payload:    `{"toAgentId":"agent_receiver","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`,
+			wantStderr: "current OpenClaw profile is missing agent_id",
 		},
 		{
-			name:       "rejects same sender and receiver",
-			payload:    `{"email":" SENDER@example.com ","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`,
-			wantStderr: "sender and receiver emails must differ",
+			name:       "rejects same sender and receiver agent",
+			payload:    `{"toAgentId":" agent_sender ","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`,
+			wantStderr: "sender and receiver agent ids must differ",
 		},
 	}
 
@@ -171,18 +181,18 @@ func TestLedgerTransferAmountParsing(t *testing.T) {
 		input string
 		want  string
 	}{
-		{input: `{"toEmail":"receiver@example.com","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "1000"},
-		{input: `{"toEmail":"receiver@example.com","amountAtomic":"2500","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "2500"},
-		{input: `{"toEmail":"receiver@example.com","amount":"0.001 U","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "1000"},
-		{input: `{"toEmail":"receiver@example.com","amount":"0.001U","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "1000"},
-		{input: `{"toEmail":"receiver@example.com","amount":"1.5 USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "1500000"},
-		{input: `{"toEmail":"receiver@example.com","amount":"1.5USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "1500000"},
-		{input: `{"toEmail":"receiver@example.com","amountAtomic":"2500","amount":"1.5USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "2500"},
+		{input: `{"toAgentId":"agent_receiver","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "1000"},
+		{input: `{"toAgentId":"agent_receiver","amountAtomic":"2500","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "2500"},
+		{input: `{"toAgentId":"agent_receiver","amount":"0.001 U","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "1000"},
+		{input: `{"toAgentId":"agent_receiver","amount":"0.001U","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "1000"},
+		{input: `{"toAgentId":"agent_receiver","amount":"1.5 USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "1500000"},
+		{input: `{"toAgentId":"agent_receiver","amount":"1.5USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "1500000"},
+		{input: `{"toAgentId":"agent_receiver","amountAtomic":"2500","amount":"1.5USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`, want: "2500"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
-			req, err := buildTransferRequest([]byte(tt.input), Profile{Email: "sender@example.com"})
+			req, err := buildTransferRequest([]byte(tt.input), Profile{AgentID: "agent_sender"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -194,7 +204,7 @@ func TestLedgerTransferAmountParsing(t *testing.T) {
 }
 
 func TestLedgerTransferRejectsDecimalAmountAtomic(t *testing.T) {
-	req, err := buildTransferRequest([]byte(`{"toEmail":"receiver@example.com","amount":"1.5USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`), Profile{Email: "sender@example.com"})
+	req, err := buildTransferRequest([]byte(`{"toAgentId":"agent_receiver","amount":"1.5USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`), Profile{AgentID: "agent_sender"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +212,7 @@ func TestLedgerTransferRejectsDecimalAmountAtomic(t *testing.T) {
 		t.Fatalf("amountAtomic = %q", req.AmountAtomic)
 	}
 
-	_, err = buildTransferRequest([]byte(`{"toEmail":"receiver@example.com","amountAtomic":"1.5USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`), Profile{Email: "sender@example.com"})
+	_, err = buildTransferRequest([]byte(`{"toAgentId":"agent_receiver","amountAtomic":"1.5USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`), Profile{AgentID: "agent_sender"})
 	if err == nil {
 		t.Fatal("decimal amountAtomic was accepted")
 	}

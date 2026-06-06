@@ -10,8 +10,7 @@ import (
 )
 
 type transferInput struct {
-	ToEmail        string          `json:"toEmail"`
-	Email          string          `json:"email"`
+	ToAgentID      string          `json:"toAgentId"`
 	Amount         json.RawMessage `json:"amount"`
 	AmountAtomic   json.RawMessage `json:"amountAtomic"`
 	PaymentContext json.RawMessage `json:"paymentContext"`
@@ -24,8 +23,8 @@ type transferPaymentContext struct {
 }
 
 type transferRequest struct {
-	FromEmail    string `json:"fromEmail"`
-	ToEmail      string `json:"toEmail"`
+	FromAgentID  string `json:"fromAgentId"`
+	ToAgentID    string `json:"toAgentId"`
 	AmountAtomic string `json:"amountAtomic"`
 	Reason       string `json:"reason"`
 }
@@ -59,11 +58,17 @@ func buildTransferRequest(data []byte, profile Profile) (transferRequest, error)
 	if err := json.Unmarshal(data, &rawPayload); err != nil {
 		return transferRequest{}, fmt.Errorf("transfer payload is malformed JSON: %s", err.Error())
 	}
-	if _, ok := rawPayload["fromAgentId"]; ok {
-		return transferRequest{}, fmt.Errorf("fromAgentId/toAgentId are internal; use recipient email")
+	if _, ok := rawPayload["fromEmail"]; ok {
+		return transferRequest{}, fmt.Errorf("fromEmail/toEmail are no longer accepted; use agent ids")
 	}
-	if _, ok := rawPayload["toAgentId"]; ok {
-		return transferRequest{}, fmt.Errorf("fromAgentId/toAgentId are internal; use recipient email")
+	if _, ok := rawPayload["toEmail"]; ok {
+		return transferRequest{}, fmt.Errorf("fromEmail/toEmail are no longer accepted; use agent ids")
+	}
+	if _, ok := rawPayload["email"]; ok {
+		return transferRequest{}, fmt.Errorf("fromEmail/toEmail are no longer accepted; use agent ids")
+	}
+	if _, ok := rawPayload["fromAgentId"]; ok {
+		return transferRequest{}, fmt.Errorf("fromAgentId is resolved from the current profile")
 	}
 
 	var payload transferInput
@@ -73,19 +78,16 @@ func buildTransferRequest(data []byte, profile Profile) (transferRequest, error)
 		return transferRequest{}, fmt.Errorf("transfer payload is malformed JSON: %s", err.Error())
 	}
 
-	fromEmail := normalizeEmail(profile.Email)
-	if fromEmail == "" {
-		return transferRequest{}, fmt.Errorf("current OpenClaw profile is missing email")
+	fromAgentID := strings.TrimSpace(profile.normalizedAgentID())
+	if fromAgentID == "" {
+		return transferRequest{}, fmt.Errorf("current OpenClaw profile is missing agent_id")
 	}
-	toEmail := normalizeEmail(payload.ToEmail)
-	if toEmail == "" {
-		toEmail = normalizeEmail(payload.Email)
+	toAgentID := strings.TrimSpace(payload.ToAgentID)
+	if toAgentID == "" {
+		return transferRequest{}, fmt.Errorf("recipient agent id is required via toAgentId")
 	}
-	if toEmail == "" {
-		return transferRequest{}, fmt.Errorf("recipient email is required via toEmail or email")
-	}
-	if fromEmail == toEmail {
-		return transferRequest{}, fmt.Errorf("sender and receiver emails must differ")
+	if fromAgentID == toAgentID {
+		return transferRequest{}, fmt.Errorf("sender and receiver agent ids must differ")
 	}
 
 	amountAtomic, err := transferAmountAtomic(payload)
@@ -101,8 +103,8 @@ func buildTransferRequest(data []byte, profile Profile) (transferRequest, error)
 		return transferRequest{}, err
 	}
 	return transferRequest{
-		FromEmail:    fromEmail,
-		ToEmail:      toEmail,
+		FromAgentID:  fromAgentID,
+		ToAgentID:    toAgentID,
 		AmountAtomic: amountAtomic,
 		Reason:       strings.TrimSpace(context.Reason),
 	}, nil

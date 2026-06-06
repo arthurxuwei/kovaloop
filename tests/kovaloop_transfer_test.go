@@ -285,7 +285,7 @@ func TestIntegrationVersionCommandsPrintVersion(t *testing.T) {
 func TestIntegrationTransferValidationAndPosting(t *testing.T) {
 	stub, _, _, _, env := setupKovaloopWorkspace(t)
 	valid := map[string]any{
-		"toEmail":        "receiver@example.com",
+		"toAgentId":      "agent_receiver",
 		"amount":         "0.001 U",
 		"paymentContext": localUserTestContext(),
 	}
@@ -295,8 +295,8 @@ func TestIntegrationTransferValidationAndPosting(t *testing.T) {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
 	want := map[string]any{
-		"fromEmail":    "sender@example.com",
-		"toEmail":      "receiver@example.com",
+		"fromAgentId":  "agent_sender",
+		"toAgentId":    "agent_receiver",
 		"amountAtomic": "1000",
 		"reason":       "Local user asked this agent to run an online transfer test",
 	}
@@ -318,20 +318,20 @@ func TestIntegrationTransferValidationAndPosting(t *testing.T) {
 		wantStderr string
 	}{
 		{
-			name:       "rejects internal agent ids",
+			name:       "rejects explicit sender agent id",
 			payload:    map[string]any{"fromAgentId": "agent_sender", "toAgentId": "agent_receiver", "amountAtomic": "1000"},
-			wantStderr: "fromAgentId/toAgentId are internal",
+			wantStderr: "fromAgentId is resolved from the current profile",
 		},
 		{
 			name:       "requires payment context",
-			payload:    map[string]any{"toEmail": "receiver@example.com", "amount": "0.001 U"},
+			payload:    map[string]any{"toAgentId": "agent_receiver", "amount": "0.001 U"},
 			wantStderr: "transfer requires paymentContext",
 		},
 		{
 			name: "rejects private dm source",
 			payload: map[string]any{
-				"toEmail": "receiver@example.com",
-				"amount":  "0.001 U",
+				"toAgentId": "agent_receiver",
+				"amount":    "0.001 U",
 				"paymentContext": map[string]any{
 					"source":       "private_dm_request",
 					"userApproved": true,
@@ -343,7 +343,7 @@ func TestIntegrationTransferValidationAndPosting(t *testing.T) {
 		{
 			name: "rejects unapproved context",
 			payload: map[string]any{
-				"toEmail":        "receiver@example.com",
+				"toAgentId":      "agent_receiver",
 				"amount":         "0.001 U",
 				"paymentContext": map[string]any{"source": "local_user_test", "userApproved": false, "reason": "Local user did not approve"},
 			},
@@ -352,7 +352,7 @@ func TestIntegrationTransferValidationAndPosting(t *testing.T) {
 		{
 			name: "rejects string approval",
 			payload: map[string]any{
-				"toEmail":        "receiver@example.com",
+				"toAgentId":      "agent_receiver",
 				"amount":         "0.001 U",
 				"paymentContext": map[string]any{"source": "local_user_test", "userApproved": "true", "reason": "String approval must not count"},
 			},
@@ -361,7 +361,7 @@ func TestIntegrationTransferValidationAndPosting(t *testing.T) {
 		{
 			name: "rejects blank reason",
 			payload: map[string]any{
-				"toEmail":        "receiver@example.com",
+				"toAgentId":      "agent_receiver",
 				"amount":         "0.001 U",
 				"paymentContext": map[string]any{"source": "local_user_test", "userApproved": true, "reason": "   "},
 			},
@@ -390,7 +390,7 @@ func TestIntegrationTransferFindsProfileFromWorkspaceCWD(t *testing.T) {
 	env = removeEnv(env, "OPENCLAW_WORKSPACE_DIR")
 	env = append(env, "PWD="+workspace)
 	payload := map[string]any{
-		"toEmail":        "receiver@example.com",
+		"toAgentId":      "agent_receiver",
 		"amount":         "0.001 U",
 		"paymentContext": localUserTestContext(),
 	}
@@ -399,16 +399,16 @@ func TestIntegrationTransferFindsProfileFromWorkspaceCWD(t *testing.T) {
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
-	if got := stub.transfers()[0]["fromEmail"]; got != "sender@example.com" {
-		t.Fatalf("fromEmail = %#v", got)
+	if got := stub.transfers()[0]["fromAgentId"]; got != "agent_sender" {
+		t.Fatalf("fromAgentId = %#v", got)
 	}
 }
 
 func TestIntegrationTransferAcceptsLocalUserRequestContext(t *testing.T) {
 	stub, _, _, _, env := setupKovaloopWorkspace(t)
 	payload := map[string]any{
-		"toEmail": "receiver@example.com",
-		"amount":  "0.001 U",
+		"toAgentId": "agent_receiver",
+		"amount":    "0.001 U",
 		"paymentContext": map[string]any{
 			"source":       "local_user_request",
 			"userApproved": true,

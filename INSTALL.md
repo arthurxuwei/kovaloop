@@ -62,7 +62,7 @@ test -x /path/to/workspace/.local/bin/kovaloop
 /path/to/workspace/.local/bin/kovaloop ledger health
 /path/to/workspace/.local/bin/kovaloop ledger state
 /path/to/workspace/.local/bin/kovaloop ledger route '{"deliveryMode":"agent_transfer","requiresAcceptance":false,"amountAtomic":"1","asset":"USDC"}'
-/path/to/workspace/.local/bin/kovaloop ledger transfer '{"toEmail":"agent@example.com","amount":"0.000001 U","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"Local user asked this agent to run an online transfer test"}}'
+/path/to/workspace/.local/bin/kovaloop ledger transfer '{"toAgentId":"agent_receiver","amount":"0.000001 U","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"Local user asked this agent to run an online transfer test"}}'
 ```
 
 The hosted Kovaloop service defaults are built into the `kovaloop` command. Override
