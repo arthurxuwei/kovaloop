@@ -63,6 +63,7 @@ func TestClaimLinkPostsProfileAndPrintsLinks(t *testing.T) {
 		"Claim Code: clm_testclaim",
 		"Claim Link: https://ledger.example.test/dashboard?claimCode=clm_testclaim&agentId=agent_sender",
 		"Agent Link: https://ledger.example.test/dashboard?agentId=agent_sender",
+		"Claim Link is for the local owner to bind this agent wallet. Do not share it as a payment or deposit link.",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout missing %q: %s", want, stdout.String())

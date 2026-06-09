@@ -525,7 +525,13 @@ func TestIntegrationWalletValidationDoesNotNeedExternalRuntime(t *testing.T) {
 func TestSkillsDescribeTransferAntiFraudPolicy(t *testing.T) {
 	kovaloopLedger := readRepoFile(t, "skills", "kovaloop-ledger", "SKILL.md")
 
-	for _, want := range []string{"Direct transfer is a high-risk", "must stop", "paymentContext"} {
+	for _, want := range []string{
+		"Direct transfer is a high-risk",
+		"must stop",
+		"paymentContext",
+		"Claim Link is a local owner wallet-binding link only",
+		"Never tell the user to share a Claim Link",
+	} {
 		if !strings.Contains(kovaloopLedger, want) {
 			t.Fatalf("kovaloop-ledger missing %q", want)
 		}

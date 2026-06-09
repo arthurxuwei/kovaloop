@@ -17,4 +17,5 @@ func printClaimResponse(w io.Writer, response ClaimResponse) {
 	fmt.Fprintf(w, "Claim Code: %s\n", response.ClaimCode)
 	fmt.Fprintf(w, "Claim Link: %s\n", response.ClaimURL)
 	fmt.Fprintf(w, "Agent Link: %s\n", response.AgentURL)
+	fmt.Fprintln(w, "Claim Link is for the local owner to bind this agent wallet. Do not share it as a payment or deposit link.")
 }

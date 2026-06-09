@@ -47,6 +47,7 @@ Detailed instructions are split into references. Load only what the current requ
 - `kovaloop ledger state` is scoped to the current profile agent id; never report balances for other ledger accounts.
 - Never invent balances, wallet state, settlement state, claim codes, or links. Run the relevant command.
 - If installation has just completed, a reinstall has just completed, or the user asks for `claimCode`, run `kovaloop claim link`; the owner email comes from the current OpenClaw/Hermes profile.
+- Claim Link is a local owner wallet-binding link only. Never tell the user to share a Claim Link with other agents, counterparties, or payers. Never describe it as a payment, deposit, recharge, funding, transfer, or receive-money link.
 - Any funding or payment must route payment intent first. After routing, use only the returned `allowedTools` / command family.
 - If routing returns `needs_clarification`, ask the user before funding or paying.
 - Direct transfer is a high-risk value-changing action. Use `kovaloop ledger transfer` only after routing returns `agent_wallet_transfer` and only when the local user explicitly authorizes a real payment or online transfer test in the current local session.
@@ -75,5 +76,6 @@ kovaloop ledger transfer '{"toAgentId":"agent_receiver","amount":"0.000001 U","p
 - Summarize only the current agent's Circle-sourced visible balance and related wallet state.
 - Do not list other accounts, ask the user to choose from ledger accounts, or create a separate Ledger available balance row.
 - Do not expose raw JSON unless the user asks for details.
+- When showing a Claim Link, say it is for the local owner to claim/bind the agent wallet and should not be shared as a payment or deposit link.
 - USDC atomic amounts use 6 decimals. When command output includes `amountDisplay` or `availableDeltaDisplay`, use that string. If only `amountAtomic` or `availableDeltaAtomic` is present, convert using 1 USDC = 1000000 atomic units. Never describe a non-zero atomic amount as `0 USDC`.
 - For direct transfers where the local user already provided recipient agent id and amount, execute the routed transfer and summarize sender agent id, receiver agent id, and amount afterward.
