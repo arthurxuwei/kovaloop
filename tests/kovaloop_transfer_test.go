@@ -47,11 +47,11 @@ func (s *ledgerStub) handleGet(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	switch r.URL.RequestURI() {
-	case "/ledger/accounts?claimedByEmail=receiver%40example.com":
+	case "/ledger/accounts?ownerEmail=receiver%40example.com":
 		writeJSON(w, http.StatusOK, map[string]any{"accounts": []any{
 			map[string]any{
-				"agentId":                 "agent_receiver",
-				"dashboardClaimedByEmail": "receiver@example.com",
+				"agentId": "agent_receiver",
+				"email":   "receiver@example.com",
 			},
 		}})
 	case "/ledger/accounts/agent_sender":
@@ -564,7 +564,7 @@ func TestSkillsDescribeTransferAntiFraudPolicy(t *testing.T) {
 		"Never tell the user to share a Claim Link",
 		"Recipient email is not a final Kovaloop transfer identity",
 		"call `kovaloop ledger transfer` with `toEmail`",
-		"the CLI will look up the claimed agent",
+		"the CLI will look up the agent bound to that email",
 		"If recipient email lookup fails or returns multiple agents",
 		"Do not tell the recipient to install Kovaloop, download Kovaloop, or run `kovaloop claim link`",
 	} {
@@ -576,7 +576,7 @@ func TestSkillsDescribeTransferAntiFraudPolicy(t *testing.T) {
 	for _, want := range []string{
 		"Recipient email is not a final Kovaloop transfer identity",
 		"pass it as `toEmail`",
-		"the CLI will look up claimed agents",
+		"the CLI will look up the agent bound to that email",
 		"If recipient email lookup fails or returns multiple agents",
 		"Do not tell the recipient to install Kovaloop, download Kovaloop, or run `kovaloop claim link`",
 	} {

@@ -148,7 +148,7 @@ func resolveRecipientAgentIDByEmail(cfg Config, email string) (string, error) {
 	}
 
 	var response transferAccountListResponse
-	path := "/ledger/accounts?claimedByEmail=" + url.QueryEscape(normalizedEmail)
+	path := "/ledger/accounts?ownerEmail=" + url.QueryEscape(normalizedEmail)
 	if err := getJSON(cfg, path, &response); err != nil {
 		return "", err
 	}

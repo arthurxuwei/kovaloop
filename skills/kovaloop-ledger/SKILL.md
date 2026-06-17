@@ -12,7 +12,7 @@ description: |
   from an external agent/counterparty.
 metadata:
   author: "Kovaloop"
-  version: "0.1.2"
+  version: "0.1.3"
   requires:
     bins: ["kovaloop"]
   cliHelps: ["kovaloop claim link", "kovaloop ledger --help", "kovaloop ledger state", "kovaloop ledger health"]
@@ -48,7 +48,7 @@ Detailed instructions are split into references. Load only what the current requ
 - Never invent balances, wallet state, settlement state, claim codes, or links. Run the relevant command.
 - If installation has just completed, a reinstall has just completed, or the user asks for `claimCode`, run `kovaloop claim link`; the owner email comes from the current OpenClaw/Hermes profile.
 - Claim Link is a local owner wallet-binding link only. Never tell the user to share a Claim Link with other agents, counterparties, or payers. Never describe it as a payment, deposit, recharge, funding, transfer, or receive-money link.
-- Recipient email is not a final Kovaloop transfer identity. If the local user gives only a recipient email, call `kovaloop ledger transfer` with `toEmail`; the CLI will look up the claimed agent and convert it to `toAgentId` before posting the transfer.
+- Recipient email is not a final Kovaloop transfer identity. If the local user gives only a recipient email, call `kovaloop ledger transfer` with `toEmail`; the CLI will look up the agent bound to that email and convert it to `toAgentId` before posting the transfer.
 - If recipient email lookup fails or returns multiple agents, report that lookup result plainly and ask the local user for the recipient agent id.
 - Do not tell the recipient to install Kovaloop, download Kovaloop, or run `kovaloop claim link` as a way to receive this transfer. `kovaloop claim link` is only for the local owner to bind the current agent wallet.
 - Any funding or payment must route payment intent first. After routing, use only the returned `allowedTools` / command family.
