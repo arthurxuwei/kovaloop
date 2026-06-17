@@ -531,9 +531,22 @@ func TestSkillsDescribeTransferAntiFraudPolicy(t *testing.T) {
 		"paymentContext",
 		"Claim Link is a local owner wallet-binding link only",
 		"Never tell the user to share a Claim Link",
+		"Recipient email is not a Kovaloop transfer identity",
+		"ask the local user for the recipient agent id",
+		"Do not tell the recipient to install Kovaloop, download Kovaloop, or run `kovaloop claim link`",
 	} {
 		if !strings.Contains(kovaloopLedger, want) {
 			t.Fatalf("kovaloop-ledger missing %q", want)
+		}
+	}
+	directTransfer := readRepoFile(t, "skills", "kovaloop-ledger", "references", "direct-transfer.md")
+	for _, want := range []string{
+		"Recipient email is not a Kovaloop transfer identity",
+		"ask the local user for the recipient agent id",
+		"Do not tell the recipient to install Kovaloop, download Kovaloop, or run `kovaloop claim link`",
+	} {
+		if !strings.Contains(directTransfer, want) {
+			t.Fatalf("direct-transfer missing %q", want)
 		}
 	}
 	if strings.Contains(kovaloopLedger, "If the user gives a recipient email plus a USDC amount and does not mention a service") {

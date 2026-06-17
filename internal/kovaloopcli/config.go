@@ -2,7 +2,7 @@ package kovaloopcli
 
 import "os"
 
-const CLIVersion = "2026.06.09.1"
+const CLIVersion = "2026.06.17.1"
 
 type EnvMap map[string]string
 

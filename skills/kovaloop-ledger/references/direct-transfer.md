@@ -33,6 +33,9 @@ Use `paymentContext.source` as:
 
 - Do not pass `fromAgentId`; the CLI resolves it from the current profile `agent_id`.
 - Pass the recipient with `toAgentId`; email fields are no longer accepted.
+- Recipient email is not a Kovaloop transfer identity. If the user gives only an email address for the recipient, stop and ask the local user for the recipient agent id.
+- Do not say the email owner is unregistered, cannot receive, or lacks a Kovaloop wallet unless the service explicitly returned that exact fact for an agent id.
+- Do not tell the recipient to install Kovaloop, download Kovaloop, or run `kovaloop claim link` as a way to receive this transfer. `kovaloop claim link` is only for the local owner to bind the current agent wallet.
 - Do not ask "from which account?"
 - The sender is the current ZeroClaw/EigenFlux profile agent id.
 - If the recipient agent id differs from that profile agent id, execute the routed transfer flow.
