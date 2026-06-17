@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"net/url"
 	"strings"
 )
 
 type transferInput struct {
 	ToAgentID      string          `json:"toAgentId"`
+	ToEmail        string          `json:"toEmail"`
 	Amount         json.RawMessage `json:"amount"`
 	AmountAtomic   json.RawMessage `json:"amountAtomic"`
 	PaymentContext json.RawMessage `json:"paymentContext"`
@@ -39,7 +41,13 @@ func runLedgerTransfer(args []string, stdout io.Writer, stderr io.Writer, cfg Co
 		fmt.Fprintln(stderr, err.Error())
 		return 2
 	}
-	body, err := buildTransferRequest([]byte(args[0]), profile)
+	body, err := buildTransferRequestWithResolver(
+		[]byte(args[0]),
+		profile,
+		func(email string) (string, error) {
+			return resolveRecipientAgentIDByEmail(cfg, email)
+		},
+	)
 	if err != nil {
 		fmt.Fprintln(stderr, err.Error())
 		return 2
@@ -54,18 +62,23 @@ func runLedgerTransfer(args []string, stdout io.Writer, stderr io.Writer, cfg Co
 }
 
 func buildTransferRequest(data []byte, profile Profile) (transferRequest, error) {
+	return buildTransferRequestWithResolver(data, profile, nil)
+}
+
+func buildTransferRequestWithResolver(
+	data []byte,
+	profile Profile,
+	resolveRecipientEmail func(string) (string, error),
+) (transferRequest, error) {
 	var rawPayload map[string]json.RawMessage
 	if err := json.Unmarshal(data, &rawPayload); err != nil {
 		return transferRequest{}, fmt.Errorf("transfer payload is malformed JSON: %s", err.Error())
 	}
 	if _, ok := rawPayload["fromEmail"]; ok {
-		return transferRequest{}, fmt.Errorf("fromEmail/toEmail are no longer accepted; use agent ids")
-	}
-	if _, ok := rawPayload["toEmail"]; ok {
-		return transferRequest{}, fmt.Errorf("fromEmail/toEmail are no longer accepted; use agent ids")
+		return transferRequest{}, fmt.Errorf("fromEmail is no longer accepted; sender is resolved from the current profile")
 	}
 	if _, ok := rawPayload["email"]; ok {
-		return transferRequest{}, fmt.Errorf("fromEmail/toEmail are no longer accepted; use agent ids")
+		return transferRequest{}, fmt.Errorf("email is ambiguous; use toEmail for recipient lookup or toAgentId for direct transfer")
 	}
 	if _, ok := rawPayload["fromAgentId"]; ok {
 		return transferRequest{}, fmt.Errorf("fromAgentId is resolved from the current profile")
@@ -83,6 +96,20 @@ func buildTransferRequest(data []byte, profile Profile) (transferRequest, error)
 		return transferRequest{}, fmt.Errorf("current OpenClaw profile is missing agent_id")
 	}
 	toAgentID := strings.TrimSpace(payload.ToAgentID)
+	toEmail := normalizeEmail(payload.ToEmail)
+	if toAgentID != "" && toEmail != "" {
+		return transferRequest{}, fmt.Errorf("provide either toAgentId or toEmail, not both")
+	}
+	if toAgentID == "" && toEmail != "" {
+		if resolveRecipientEmail == nil {
+			return transferRequest{}, fmt.Errorf("recipient agent id is required via toAgentId")
+		}
+		resolvedAgentID, err := resolveRecipientEmail(toEmail)
+		if err != nil {
+			return transferRequest{}, err
+		}
+		toAgentID = strings.TrimSpace(resolvedAgentID)
+	}
 	if toAgentID == "" {
 		return transferRequest{}, fmt.Errorf("recipient agent id is required via toAgentId")
 	}
@@ -108,6 +135,40 @@ func buildTransferRequest(data []byte, profile Profile) (transferRequest, error)
 		AmountAtomic: amountAtomic,
 		Reason:       strings.TrimSpace(context.Reason),
 	}, nil
+}
+
+type transferAccountListResponse struct {
+	Accounts []map[string]any `json:"accounts"`
+}
+
+func resolveRecipientAgentIDByEmail(cfg Config, email string) (string, error) {
+	normalizedEmail := normalizeEmail(email)
+	if normalizedEmail == "" {
+		return "", fmt.Errorf("recipient email is empty")
+	}
+
+	var response transferAccountListResponse
+	path := "/ledger/accounts?claimedByEmail=" + url.QueryEscape(normalizedEmail)
+	if err := getJSON(cfg, path, &response); err != nil {
+		return "", err
+	}
+	if response.Accounts == nil {
+		return "", fmt.Errorf("ledger account lookup response is missing accounts")
+	}
+
+	agentIDs := []string{}
+	for _, account := range response.Accounts {
+		if agentID, ok := stringField(account, "agentId"); ok {
+			agentIDs = append(agentIDs, agentID)
+		}
+	}
+	if len(agentIDs) == 0 {
+		return "", fmt.Errorf("no Kovaloop agent found for recipient email %s; ask for the recipient agent id", normalizedEmail)
+	}
+	if len(agentIDs) > 1 {
+		return "", fmt.Errorf("multiple Kovaloop agents found for recipient email %s; ask for the recipient agent id", normalizedEmail)
+	}
+	return agentIDs[0], nil
 }
 
 func transferAmountAtomic(payload transferInput) (string, error) {

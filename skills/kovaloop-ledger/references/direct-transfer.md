@@ -33,7 +33,8 @@ Use `paymentContext.source` as:
 
 - Do not pass `fromAgentId`; the CLI resolves it from the current profile `agent_id`.
 - Pass the recipient with `toAgentId`; email fields are no longer accepted.
-- Recipient email is not a Kovaloop transfer identity. If the user gives only an email address for the recipient, stop and ask the local user for the recipient agent id.
+- Recipient email is not a final Kovaloop transfer identity. If the user gives only an email address for the recipient, pass it as `toEmail`; the CLI will look up claimed agents for that email and resolve a unique recipient `agentId`.
+- If recipient email lookup fails or returns multiple agents, report that lookup result plainly and ask the local user for the recipient agent id.
 - Do not say the email owner is unregistered, cannot receive, or lacks a Kovaloop wallet unless the service explicitly returned that exact fact for an agent id.
 - Do not tell the recipient to install Kovaloop, download Kovaloop, or run `kovaloop claim link` as a way to receive this transfer. `kovaloop claim link` is only for the local owner to bind the current agent wallet.
 - Do not ask "from which account?"

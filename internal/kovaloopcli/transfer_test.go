@@ -72,14 +72,9 @@ func TestLedgerTransferValidationErrors(t *testing.T) {
 			wantStderr: "fromAgentId is resolved from the current profile",
 		},
 		{
-			name:       "rejects legacy recipient email",
-			payload:    `{"toEmail":"receiver@example.com","amount":"1000","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
-			wantStderr: "fromEmail/toEmail are no longer accepted",
-		},
-		{
 			name:       "rejects legacy sender email",
 			payload:    `{"fromEmail":"sender@example.com","toAgentId":"agent_receiver","amount":"1000","paymentContext":{"source":"local_user_request","userApproved":true,"reason":"test"}}`,
-			wantStderr: "fromEmail/toEmail are no longer accepted",
+			wantStderr: "fromEmail is no longer accepted",
 		},
 		{
 			name:       "requires recipient agent id",

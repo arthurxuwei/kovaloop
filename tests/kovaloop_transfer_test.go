@@ -47,6 +47,13 @@ func (s *ledgerStub) handleGet(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	switch r.URL.RequestURI() {
+	case "/ledger/accounts?claimedByEmail=receiver%40example.com":
+		writeJSON(w, http.StatusOK, map[string]any{"accounts": []any{
+			map[string]any{
+				"agentId":                 "agent_receiver",
+				"dashboardClaimedByEmail": "receiver@example.com",
+			},
+		}})
 	case "/ledger/accounts/agent_sender":
 		s.recordStatePath(r.URL.RequestURI())
 		writeJSON(w, http.StatusOK, map[string]any{"account": map[string]any{
@@ -385,6 +392,30 @@ func TestIntegrationTransferValidationAndPosting(t *testing.T) {
 	}
 }
 
+func TestIntegrationTransferResolvesRecipientEmailToAgentID(t *testing.T) {
+	stub, _, _, _, env := setupKovaloopWorkspace(t)
+	payload := map[string]any{
+		"toEmail":        "receiver@example.com",
+		"amount":         "0.000001 U",
+		"paymentContext": localUserTestContext(),
+	}
+
+	result := runKovaloop(t, env, "", "ledger", "transfer", marshalPayload(t, payload))
+
+	if result.code != 0 {
+		t.Fatalf("transfer by email exit=%d stderr=%s", result.code, result.stderr)
+	}
+	if len(stub.transfers()) != 1 {
+		t.Fatalf("posted transfers = %#v", stub.transfers())
+	}
+	assertJSONMapEqual(t, stub.transfers()[0], map[string]any{
+		"fromAgentId":  "agent_sender",
+		"toAgentId":    "agent_receiver",
+		"amountAtomic": "1",
+		"reason":       "Local user asked this agent to run an online transfer test",
+	})
+}
+
 func TestIntegrationTransferFindsProfileFromWorkspaceCWD(t *testing.T) {
 	stub, _, workspace, _, env := setupKovaloopWorkspace(t)
 	env = removeEnv(env, "OPENCLAW_WORKSPACE_DIR")
@@ -531,8 +562,10 @@ func TestSkillsDescribeTransferAntiFraudPolicy(t *testing.T) {
 		"paymentContext",
 		"Claim Link is a local owner wallet-binding link only",
 		"Never tell the user to share a Claim Link",
-		"Recipient email is not a Kovaloop transfer identity",
-		"ask the local user for the recipient agent id",
+		"Recipient email is not a final Kovaloop transfer identity",
+		"call `kovaloop ledger transfer` with `toEmail`",
+		"the CLI will look up the claimed agent",
+		"If recipient email lookup fails or returns multiple agents",
 		"Do not tell the recipient to install Kovaloop, download Kovaloop, or run `kovaloop claim link`",
 	} {
 		if !strings.Contains(kovaloopLedger, want) {
@@ -541,8 +574,10 @@ func TestSkillsDescribeTransferAntiFraudPolicy(t *testing.T) {
 	}
 	directTransfer := readRepoFile(t, "skills", "kovaloop-ledger", "references", "direct-transfer.md")
 	for _, want := range []string{
-		"Recipient email is not a Kovaloop transfer identity",
-		"ask the local user for the recipient agent id",
+		"Recipient email is not a final Kovaloop transfer identity",
+		"pass it as `toEmail`",
+		"the CLI will look up claimed agents",
+		"If recipient email lookup fails or returns multiple agents",
 		"Do not tell the recipient to install Kovaloop, download Kovaloop, or run `kovaloop claim link`",
 	} {
 		if !strings.Contains(directTransfer, want) {
