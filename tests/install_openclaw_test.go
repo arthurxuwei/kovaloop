@@ -256,9 +256,8 @@ func TestInstallIntoAllOpenClawWorkspacesAndKeepsLinkFailureNonfatal(t *testing.
 		if _, err := os.Stat(filepath.Join(workspace, "skills", "chief-ledger")); !os.IsNotExist(err) {
 			t.Fatalf("old chief skill was not removed: %v", err)
 		}
-		wantProfile := filepath.Join(workspace, ".eigenflux", "servers", "eigenflux", "profile.json")
-		if !strings.Contains(result.stdout, "KOVALOOP_AGENT_PROFILE_PATH="+wantProfile) {
-			t.Fatalf("stdout missing profile retry: %s", result.stdout)
+		if !strings.Contains(result.stdout, "KOVALOOP_HOME="+filepath.Dir(workspace)) {
+			t.Fatalf("stdout missing home retry: %s", result.stdout)
 		}
 	}
 	if !strings.Contains(result.stdout, "Claim link unavailable") {
@@ -303,9 +302,8 @@ func TestInstallIntoAllHermesConfigsAndKeepsLinkFailureNonfatal(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(config, "skills", "chief-ledger")); !os.IsNotExist(err) {
 			t.Fatalf("old chief skill was not removed: %v", err)
 		}
-		wantProfile := filepath.Join(config, ".eigenflux", "servers", "eigenflux", "profile.json")
-		if !strings.Contains(result.stdout, "KOVALOOP_AGENT_PROFILE_PATH="+wantProfile) {
-			t.Fatalf("stdout missing profile retry: %s", result.stdout)
+		if !strings.Contains(result.stdout, "KOVALOOP_HOME="+config) {
+			t.Fatalf("stdout missing home retry: %s", result.stdout)
 		}
 	}
 	if !strings.Contains(result.stdout, "Hermes config:") {
@@ -381,9 +379,12 @@ func TestInstallPrintsClaimCodeAndLinkWhenLedgerIsAvailable(t *testing.T) {
 	t.Cleanup(server.Close)
 	target := filepath.Join(root, "runtime-openclaw-x", "workspace")
 
+	// Simulate the runtime providing EIGENFLUX_HOME so claim link can resolve the
+	// EigenFlux profile (the installer never sets EIGENFLUX_* itself).
 	result := runInstall(t, root, map[string]*string{
 		"OPENCLAW_WORKSPACE_DIR": envValue(target),
 		"KOVALOOP_LEDGER_URL":    envValue(server.URL),
+		"EIGENFLUX_HOME":         envValue(filepath.Join(target, ".eigenflux")),
 	})
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
@@ -413,6 +414,7 @@ func TestInstallPrintsClaimCodeAndLinkForHermesWhenLedgerIsAvailable(t *testing.
 	result := runInstall(t, root, map[string]*string{
 		"HERMES_CONFIG_DIR":   envValue(target),
 		"KOVALOOP_LEDGER_URL": envValue(server.URL),
+		"EIGENFLUX_HOME":      envValue(filepath.Join(target, ".eigenflux")),
 	})
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
@@ -548,7 +550,7 @@ func TestInstallRetryCommandIsPasteableWhenWorkspacePathContainsSpaces(t *testin
 		t.Fatalf("retry commands=%#v stdout=%s", retryCommands, result.stdout)
 	}
 	firstRetry := retryCommands[0]
-	if !strings.Contains(firstRetry, "KOVALOOP_AGENT_PROFILE_PATH=") || !strings.Contains(firstRetry, `\ `) {
+	if !strings.Contains(firstRetry, "KOVALOOP_HOME=") || !strings.Contains(firstRetry, `\ `) {
 		t.Fatalf("retry command not escaped: %q", firstRetry)
 	}
 	env := append(os.Environ(),

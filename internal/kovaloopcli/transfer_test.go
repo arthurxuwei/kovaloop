@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -34,8 +32,8 @@ func TestLedgerTransferPostsValidatedPayload(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"ledger", "transfer", payload}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_LEDGER_URL":         server.URL,
-		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
+		"KOVALOOP_LEDGER_URL": server.URL,
+		"EIGENFLUX_HOME":      profilePath,
 	})
 
 	if exitCode != 0 {
@@ -158,7 +156,7 @@ func TestLedgerTransferValidationErrors(t *testing.T) {
 			var stdout bytes.Buffer
 			var stderr bytes.Buffer
 			exitCode := Run([]string{"ledger", "transfer", tt.payload}, &stdout, &stderr, EnvMap{
-				"KOVALOOP_AGENT_PROFILE_PATH": path,
+				"EIGENFLUX_HOME": path,
 			})
 
 			if exitCode != 2 {
@@ -216,11 +214,9 @@ func TestLedgerTransferRejectsDecimalAmountAtomic(t *testing.T) {
 	}
 }
 
+// writeTransferProfile writes an EigenFlux profile and returns the EIGENFLUX_HOME
+// value to set so the CLI resolves it.
 func writeTransferProfile(t *testing.T, body string) string {
 	t.Helper()
-	profilePath := filepath.Join(t.TempDir(), "profile.json")
-	if err := os.WriteFile(profilePath, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return profilePath
+	return writeEigenfluxProfile(t, t.TempDir(), body)
 }

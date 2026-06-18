@@ -24,8 +24,7 @@ Usage:
 Environment:
   KOVALOOP_LEDGER_URL             ledger REST service base URL (default https://ledger.kovaloop.ai)
   KOVALOOP_HOME                   override the .kovaloop directory location (default $HOME/.openclaw)
-  KOVALOOP_AGENT_PROFILE_PATH     override the EigenFlux profile path (else EIGENFLUX_HOME or $HOME/.eigenflux)
-  EIGENFLUX_HOME                  read-only: EigenFlux home, used to import an existing EigenFlux profile
+  EIGENFLUX_HOME                  read-only: EigenFlux home, used to import an existing EigenFlux profile (else $HOME/.eigenflux)
 `
 
 func Run(args []string, stdout io.Writer, stderr io.Writer, env EnvMap) int {

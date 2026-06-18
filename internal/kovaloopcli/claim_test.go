@@ -8,19 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestClaimLinkPostsProfileAndPrintsLinks(t *testing.T) {
-	dir := t.TempDir()
-	profilePath := filepath.Join(dir, "profile.json")
-	err := os.WriteFile(profilePath, []byte(`{"email":"sender@example.com","agent_id":"agent_sender","agent_name":"Sender"}`), 0o644)
-	if err != nil {
-		t.Fatal(err)
-	}
+	home := writeEigenfluxProfile(t, t.TempDir(), `{"email":"sender@example.com","agent_id":"agent_sender","agent_name":"Sender"}`)
 
 	var posted ClaimRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -48,8 +41,8 @@ func TestClaimLinkPostsProfileAndPrintsLinks(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"claim", "link"}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_LEDGER_URL":         server.URL,
-		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
+		"KOVALOOP_LEDGER_URL": server.URL,
+		"EIGENFLUX_HOME":      home,
 	})
 
 	if exitCode != 0 {
@@ -75,15 +68,12 @@ func TestClaimLinkPostsProfileAndPrintsLinks(t *testing.T) {
 }
 
 func TestClaimLinkProfileValidationReturnsExitCodeTwo(t *testing.T) {
-	profilePath := filepath.Join(t.TempDir(), "profile.json")
-	if err := os.WriteFile(profilePath, []byte(`{"email":"owner@example.com"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	home := writeEigenfluxProfile(t, t.TempDir(), `{"email":"owner@example.com"}`)
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"claim", "link"}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
+		"EIGENFLUX_HOME": home,
 	})
 
 	if exitCode != 2 {
@@ -95,10 +85,7 @@ func TestClaimLinkProfileValidationReturnsExitCodeTwo(t *testing.T) {
 }
 
 func TestClaimLinkHTTPFailureReturnsNonZeroReadableError(t *testing.T) {
-	profilePath := filepath.Join(t.TempDir(), "profile.json")
-	if err := os.WriteFile(profilePath, []byte(`{"email":"sender@example.com","agent_id":"agent_sender"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	home := writeEigenfluxProfile(t, t.TempDir(), `{"email":"sender@example.com","agent_id":"agent_sender"}`)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not today", http.StatusTeapot)
 	}))
@@ -107,8 +94,8 @@ func TestClaimLinkHTTPFailureReturnsNonZeroReadableError(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"claim", "link"}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_LEDGER_URL":         server.URL,
-		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
+		"KOVALOOP_LEDGER_URL": server.URL,
+		"EIGENFLUX_HOME":      home,
 	})
 
 	if exitCode == 0 || exitCode == 2 {

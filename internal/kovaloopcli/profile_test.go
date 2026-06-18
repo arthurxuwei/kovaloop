@@ -7,15 +7,19 @@ import (
 	"testing"
 )
 
-func TestProfilePathPrefersExplicitPath(t *testing.T) {
-	cfg := Config{
-		AgentProfile:  "/explicit/profile.json",
-		EigenfluxHome: "/home/node/.openclaw/.eigenflux",
-		Home:          "/root",
+// writeEigenfluxProfile writes an EigenFlux profile under <root>/.eigenflux and
+// returns the value to set as EIGENFLUX_HOME so the CLI resolves it.
+func writeEigenfluxProfile(t *testing.T, root, content string) string {
+	t.Helper()
+	home := filepath.Join(root, ".eigenflux")
+	p := filepath.Join(home, "servers", "eigenflux", "profile.json")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	if got := ProfilePath(cfg); got != "/explicit/profile.json" {
-		t.Fatalf("ProfilePath = %q", got)
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
+	return home
 }
 
 func TestProfilePathUsesEigenfluxHomeBeforeHome(t *testing.T) {

@@ -175,7 +175,7 @@ func setupKovaloopWorkspace(t *testing.T) (*ledgerStub, *httptest.Server, string
 
 	env := append(os.Environ(),
 		"KOVALOOP_LEDGER_URL="+server.URL,
-		"KOVALOOP_AGENT_PROFILE_PATH="+profilePath,
+		"EIGENFLUX_HOME="+filepath.Join(workspace, ".eigenflux"),
 	)
 	return stub, server, workspace, profilePath, env
 }

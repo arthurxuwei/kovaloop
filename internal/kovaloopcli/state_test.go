@@ -6,17 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestLedgerStateAggregatesProfileScopedEndpoints(t *testing.T) {
-	profilePath := filepath.Join(t.TempDir(), "profile.json")
-	if err := os.WriteFile(profilePath, []byte(`{"email":"owner@example.com","agent_id":"agent/one"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	home := writeEigenfluxProfile(t, t.TempDir(), `{"email":"owner@example.com","agent_id":"agent/one"}`)
 
 	requests := []string{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,8 +32,8 @@ func TestLedgerStateAggregatesProfileScopedEndpoints(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"ledger", "state"}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_LEDGER_URL":         server.URL,
-		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
+		"KOVALOOP_LEDGER_URL": server.URL,
+		"EIGENFLUX_HOME":      home,
 	})
 
 	if exitCode != 0 {
@@ -87,15 +82,12 @@ func TestLedgerStateAggregatesProfileScopedEndpoints(t *testing.T) {
 }
 
 func TestLedgerStateRequiresProfileAgentID(t *testing.T) {
-	profilePath := filepath.Join(t.TempDir(), "profile.json")
-	if err := os.WriteFile(profilePath, []byte(`{"email":"owner@example.com"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	home := writeEigenfluxProfile(t, t.TempDir(), `{"email":"owner@example.com"}`)
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"ledger", "state"}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
+		"EIGENFLUX_HOME": home,
 	})
 
 	if exitCode != 2 {

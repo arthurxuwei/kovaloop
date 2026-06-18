@@ -35,11 +35,8 @@ func ensureEigenfluxSuffix(dir string) string {
 }
 
 // ProfilePath resolves the EigenFlux profile, mirroring EigenFlux's own
-// HomeDir() precedence: explicit override → EIGENFLUX_HOME → $HOME/.eigenflux.
+// HomeDir() precedence: EIGENFLUX_HOME (read-only, runtime-provided) → $HOME/.eigenflux.
 func ProfilePath(cfg Config) string {
-	if cfg.AgentProfile != "" {
-		return cfg.AgentProfile
-	}
 	home := cfg.Home
 	if cfg.EigenfluxHome != "" {
 		home = cfg.EigenfluxHome

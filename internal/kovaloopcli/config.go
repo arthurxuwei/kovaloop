@@ -10,7 +10,6 @@ func ProcessEnv() EnvMap {
 	env := EnvMap{}
 	for _, key := range []string{
 		"KOVALOOP_LEDGER_URL",
-		"KOVALOOP_AGENT_PROFILE_PATH",
 		"KOVALOOP_HOME",
 		"EIGENFLUX_HOME",
 		"HOME",
@@ -24,7 +23,6 @@ func ProcessEnv() EnvMap {
 
 type Config struct {
 	LedgerURL     string
-	AgentProfile  string
 	KovaloopHome  string
 	EigenfluxHome string
 	Home          string
@@ -37,7 +35,6 @@ func ConfigFromEnv(env EnvMap) Config {
 	}
 	return Config{
 		LedgerURL:     ledgerURL,
-		AgentProfile:  env["KOVALOOP_AGENT_PROFILE_PATH"],
 		KovaloopHome:  env["KOVALOOP_HOME"],
 		EigenfluxHome: env["EIGENFLUX_HOME"],
 		Home:          env["HOME"],

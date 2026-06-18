@@ -157,9 +157,8 @@ install_runtime() {
   local quoted_kovaloop
 
   # We never set EIGENFLUX_* variables (those belong to the EigenFlux runtime
-  # and are read-only for us). The installer points the CLI at the profile via
-  # our own KOVALOOP_AGENT_PROFILE_PATH and writes .kovaloop under KOVALOOP_HOME.
-  local agent_profile_path="$root/.eigenflux/servers/eigenflux/profile.json"
+  # and are read-only for us). The CLI resolves the EigenFlux profile from the
+  # ambient EIGENFLUX_HOME; the installer only sets KOVALOOP_HOME for .kovaloop.
   quoted_kovaloop="$(shell_quote "$bin_dest/kovaloop")"
 
   mkdir -p "$skills_dest" "$bin_dest"
@@ -185,16 +184,16 @@ Skills:             $skills_dest
 EOF
 
   # Mint the KovaLoop identity if absent (idempotent: reused when credentials exist).
-  env KOVALOOP_AGENT_PROFILE_PATH="$agent_profile_path" KOVALOOP_HOME="$kovaloop_home" "$bin_dest/kovaloop" profile create || true
+  env KOVALOOP_HOME="$kovaloop_home" "$bin_dest/kovaloop" profile create || true
 
-  if env KOVALOOP_AGENT_PROFILE_PATH="$agent_profile_path" KOVALOOP_HOME="$kovaloop_home" "$bin_dest/kovaloop" claim link; then
+  if env KOVALOOP_HOME="$kovaloop_home" "$bin_dest/kovaloop" claim link; then
     return 0
   fi
 
   cat <<EOF
 Claim link unavailable for $root.
 Retry:
-KOVALOOP_AGENT_PROFILE_PATH=$(shell_quote "$agent_profile_path") KOVALOOP_HOME=$(shell_quote "$kovaloop_home") $quoted_kovaloop claim link
+KOVALOOP_HOME=$(shell_quote "$kovaloop_home") $quoted_kovaloop claim link
 EOF
 }
 
