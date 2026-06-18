@@ -582,8 +582,8 @@ func TestAgentWalletOnboardingDocsPointToClaimLink(t *testing.T) {
 		if !strings.Contains(source.body, "kovaloop claim link") {
 			t.Fatalf("%s missing kovaloop claim link", source.name)
 		}
-		if !strings.Contains(source.body, "owner email") {
-			t.Fatalf("%s missing owner email", source.name)
+		if !strings.Contains(source.body, "kovaloop profile create") {
+			t.Fatalf("%s missing kovaloop profile create", source.name)
 		}
 		if strings.Contains(source.body, "kovaloop ledger wallet get-or-create") {
 			t.Fatalf("%s still references direct wallet get-or-create", source.name)

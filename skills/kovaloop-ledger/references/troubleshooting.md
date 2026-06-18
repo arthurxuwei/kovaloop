@@ -4,13 +4,14 @@ Use this reference when a Kovaloop ledger, claim, routing, or transfer command f
 
 ## Claim Link Fails
 
-Cause: Ledger unavailable, missing profile, missing owner email, or missing agent id.
+Cause: Ledger unavailable, or no local KovaLoop profile yet (`.kovaloop/profile.json` missing).
 
 Action:
 
 1. If this happened during install, tell the user installation succeeded but claim link generation did not.
-2. Retry with the command printed by the installer, preserving `OPENCLAW_WORKSPACE_DIR` for OpenClaw or `HERMES_CONFIG_DIR` for Hermes.
-3. If profile email or agent id is missing, ask the user to complete or repair the OpenClaw/EigenFlux or Hermes profile.
+2. If the error is "no local KovaLoop profile", run `kovaloop profile create` (idempotent), then retry `kovaloop claim link`.
+3. Retry with the command printed by the installer, preserving `KOVALOOP_HOME`.
+4. If the ledger is unreachable, report ledger health and wait for it to recover.
 
 ## Health Fails
 
@@ -20,9 +21,9 @@ Action: Report that ledger health failed and include the concise error. Do not a
 
 ## State Missing Agent Scope
 
-Cause: The local profile did not provide an agent id.
+Cause: No local KovaLoop profile, so there is no canonical agent id to scope to.
 
-Action: Do not show global ledger data. Ask the user to fix the current profile, then rerun `kovaloop ledger state`.
+Action: Do not show global ledger data. Run `kovaloop profile create` (idempotent), then rerun `kovaloop ledger state`.
 
 ## Route Returns `needs_clarification`
 
