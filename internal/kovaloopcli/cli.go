@@ -17,6 +17,9 @@ Usage:
   kovaloop ledger wallet get-or-create '<json>'
   kovaloop ledger transfer '{"toAgentId":"agent_receiver","amount":"0.000001 U","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"Local user approved an online transfer test"}}'
   kovaloop claim link
+  kovaloop profile create
+  kovaloop profile update '{"description":"..."}'
+  kovaloop profile show
 
 Environment:
   KOVALOOP_LEDGER_URL             default hosted ledger REST service base URL
@@ -57,6 +60,9 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, env EnvMap) int {
 		}
 		fmt.Fprint(stderr, usageText)
 		return 2
+	}
+	if args[0] == "profile" {
+		return runProfile(args[1:], stdout, stderr, ConfigFromEnv(env))
 	}
 	if args[0] == "ledger" {
 		return runLedger(args[1:], stdout, stderr, ConfigFromEnv(env))
