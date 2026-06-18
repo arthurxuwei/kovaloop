@@ -9,117 +9,27 @@ import (
 
 func TestProfilePathPrefersExplicitPath(t *testing.T) {
 	cfg := Config{
-		AgentProfile: "/explicit/profile.json",
-		WorkspaceDir: "/workspace",
-		WorkingDir:   "/cwd",
+		AgentProfile:  "/explicit/profile.json",
+		EigenfluxHome: "/home/node/.openclaw/.eigenflux",
+		Home:          "/root",
 	}
-
-	got := ProfilePath(cfg)
-
-	if got != "/explicit/profile.json" {
+	if got := ProfilePath(cfg); got != "/explicit/profile.json" {
 		t.Fatalf("ProfilePath = %q", got)
 	}
 }
 
-func TestProfilePathUsesWorkspaceBeforeWorkingDirectory(t *testing.T) {
-	cfg := Config{
-		WorkspaceDir: "/workspace",
-		WorkingDir:   "/cwd",
-	}
-
-	got := ProfilePath(cfg)
-	want := filepath.Join("/workspace", ".eigenflux", "servers", "eigenflux", "profile.json")
-	if got != want {
+func TestProfilePathUsesEigenfluxHomeBeforeHome(t *testing.T) {
+	cfg := Config{EigenfluxHome: "/home/node/.openclaw/.eigenflux", Home: "/root"}
+	want := "/home/node/.openclaw/.eigenflux/servers/eigenflux/profile.json"
+	if got := ProfilePath(cfg); got != want {
 		t.Fatalf("ProfilePath = %q, want %q", got, want)
 	}
 }
 
-func TestProfilePathUsesHermesConfigAfterOpenClawWorkspace(t *testing.T) {
-	cfg := Config{
-		WorkspaceDir:    "/workspace",
-		HermesConfigDir: "/hermes",
-		WorkingDir:      "/cwd",
-	}
-
-	got := ProfilePath(cfg)
-	want := filepath.Join("/workspace", ".eigenflux", "servers", "eigenflux", "profile.json")
-	if got != want {
-		t.Fatalf("ProfilePath = %q, want %q", got, want)
-	}
-}
-
-func TestProfilePathUsesHermesConfigProfileWhenPresent(t *testing.T) {
-	dir := t.TempDir()
-	profilePath := filepath.Join(dir, ".eigenflux", "servers", "eigenflux", "profile.json")
-	if err := os.MkdirAll(filepath.Dir(profilePath), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(profilePath, []byte(`{}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	got := ProfilePath(Config{HermesConfigDir: dir, WorkingDir: "/cwd"})
-
-	if got != profilePath {
-		t.Fatalf("ProfilePath = %q, want %q", got, profilePath)
-	}
-}
-
-func TestProfilePathFallsBackToHermesWorkspaceProfile(t *testing.T) {
-	dir := t.TempDir()
-	profilePath := filepath.Join(dir, "workspace", ".eigenflux", "servers", "eigenflux", "profile.json")
-	if err := os.MkdirAll(filepath.Dir(profilePath), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(profilePath, []byte(`{}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	got := ProfilePath(Config{HermesConfigDir: dir, WorkingDir: "/cwd"})
-
-	if got != profilePath {
-		t.Fatalf("ProfilePath = %q, want %q", got, profilePath)
-	}
-}
-
-func TestProfilePathFallsBackToHermesProfileJSON(t *testing.T) {
-	dir := t.TempDir()
-	profilePath := filepath.Join(dir, "profile.json")
-	if err := os.WriteFile(profilePath, []byte(`{}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	got := ProfilePath(Config{HermesConfigDir: dir, WorkingDir: "/cwd"})
-
-	if got != profilePath {
-		t.Fatalf("ProfilePath = %q, want %q", got, profilePath)
-	}
-}
-
-func TestProfilePathUsesCurrentDirectoryProfileWhenPresent(t *testing.T) {
-	dir := t.TempDir()
-	profilePath := filepath.Join(dir, ".eigenflux", "servers", "eigenflux", "profile.json")
-	if err := os.MkdirAll(filepath.Dir(profilePath), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(profilePath, []byte(`{}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	got := ProfilePath(Config{WorkingDir: dir})
-
-	if got != profilePath {
-		t.Fatalf("ProfilePath = %q, want %q", got, profilePath)
-	}
-}
-
-func TestProfilePathFallsBackToWorkspaceUnderWorkingDirectory(t *testing.T) {
-	dir := t.TempDir()
-
-	got := ProfilePath(Config{WorkingDir: dir})
-	want := filepath.Join(dir, "workspace", ".eigenflux", "servers", "eigenflux", "profile.json")
-
-	if got != want {
+func TestProfilePathDefaultsToHomeEigenflux(t *testing.T) {
+	cfg := Config{Home: "/root"}
+	want := filepath.Join("/root", ".eigenflux", "servers", "eigenflux", "profile.json")
+	if got := ProfilePath(cfg); got != want {
 		t.Fatalf("ProfilePath = %q, want %q", got, want)
 	}
 }
@@ -264,21 +174,12 @@ func TestClaimPayloadRequiresAgentIDAndEmail(t *testing.T) {
 	}
 }
 
-func TestProfilePathResolvesConfigRootWhenWorkspaceMissing(t *testing.T) {
-	root := t.TempDir()
-	workspace := filepath.Join(root, "workspace")
-	// profile lives at the config root (parent of workspace), not under workspace
-	rootProfileDir := filepath.Join(root, ".eigenflux", "servers", "eigenflux")
-	if err := os.MkdirAll(rootProfileDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	rootProfile := filepath.Join(rootProfileDir, "profile.json")
-	if err := os.WriteFile(rootProfile, []byte(`{"agent_id":"x"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg := Config{WorkspaceDir: workspace}
-	if got := ProfilePath(cfg); got != rootProfile {
-		t.Fatalf("ProfilePath = %q, want %q", got, rootProfile)
+func TestProfilePathAppendsEigenfluxSuffixWhenMissing(t *testing.T) {
+	// EIGENFLUX_HOME without a trailing .eigenflux gets the suffix appended,
+	// mirroring EigenFlux's own HomeDir() resolution.
+	cfg := Config{EigenfluxHome: "/home/node/.openclaw"}
+	want := "/home/node/.openclaw/.eigenflux/servers/eigenflux/profile.json"
+	if got := ProfilePath(cfg); got != want {
+		t.Fatalf("ProfilePath = %q, want %q", got, want)
 	}
 }

@@ -143,11 +143,13 @@ install_runtime() {
   local root="$2"
   local skills_dest="$3"
   local bin_dest="$4"
-  local env_name="$5"
-  local quoted_root
+  local kovaloop_home="$5"
   local quoted_kovaloop
 
-  quoted_root="$(shell_quote "$root")"
+  # We never set EIGENFLUX_* variables (those belong to the EigenFlux runtime
+  # and are read-only for us). The installer points the CLI at the profile via
+  # our own KOVALOOP_AGENT_PROFILE_PATH and writes .kovaloop under KOVALOOP_HOME.
+  local agent_profile_path="$root/.eigenflux/servers/eigenflux/profile.json"
   quoted_kovaloop="$(shell_quote "$bin_dest/kovaloop")"
 
   mkdir -p "$skills_dest" "$bin_dest"
@@ -168,27 +170,28 @@ Skills:             $skills_dest
 EOF
 
   # Mint the KovaLoop identity if absent (idempotent: reused when credentials exist).
-  env "$env_name=$root" "$bin_dest/kovaloop" profile create || true
+  env KOVALOOP_AGENT_PROFILE_PATH="$agent_profile_path" KOVALOOP_HOME="$kovaloop_home" "$bin_dest/kovaloop" profile create || true
 
-  if env "$env_name=$root" "$bin_dest/kovaloop" claim link; then
+  if env KOVALOOP_AGENT_PROFILE_PATH="$agent_profile_path" KOVALOOP_HOME="$kovaloop_home" "$bin_dest/kovaloop" claim link; then
     return 0
   fi
 
   cat <<EOF
 Claim link unavailable for $root.
 Retry:
-$env_name=$quoted_root $quoted_kovaloop claim link
+KOVALOOP_AGENT_PROFILE_PATH=$(shell_quote "$agent_profile_path") KOVALOOP_HOME=$(shell_quote "$kovaloop_home") $quoted_kovaloop claim link
 EOF
 }
 
 install_openclaw_workspace() {
   local workspace="$1"
-  install_runtime "OpenClaw workspace" "$workspace" "$workspace/skills" "$workspace/.local/bin" "OPENCLAW_WORKSPACE_DIR"
+  # .kovaloop lives at the config volume root (parent of the workspace dir).
+  install_runtime "OpenClaw workspace" "$workspace" "$workspace/skills" "$workspace/.local/bin" "$(dirname "$workspace")"
 }
 
 install_hermes_config() {
   local config="$1"
-  install_runtime "Hermes config" "$config" "$config/skills" "$config/bin" "HERMES_CONFIG_DIR"
+  install_runtime "Hermes config" "$config" "$config/skills" "$config/bin" "$config"
 }
 
 install_discovered_runtimes

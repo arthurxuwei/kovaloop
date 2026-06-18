@@ -77,18 +77,15 @@ func SaveLocalProfile(path string, p LocalProfile) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+// kovaloopHomeRoot returns the directory under which .kovaloop is created.
+// It anchors to OpenClaw's own config dir ($HOME/.openclaw) — independent of
+// where EigenFlux stores its data — and is overridable with KOVALOOP_HOME.
 func kovaloopHomeRoot(cfg Config) string {
 	if cfg.KovaloopHome != "" {
 		return cfg.KovaloopHome
 	}
-	if cfg.WorkspaceDir != "" {
-		return filepath.Dir(cfg.WorkspaceDir) // config volume root (parent of workspace)
-	}
-	if cfg.HermesConfigDir != "" {
-		return cfg.HermesConfigDir
-	}
-	if cfg.WorkingDir != "" {
-		return cfg.WorkingDir
+	if cfg.Home != "" {
+		return filepath.Join(cfg.Home, ".openclaw")
 	}
 	return "."
 }

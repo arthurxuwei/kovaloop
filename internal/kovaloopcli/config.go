@@ -14,30 +14,23 @@ func ProcessEnv() EnvMap {
 		"KOVALOOP_LEDGER_FALLBACK_URL",
 		"KOVALOOP_AGENT_PROFILE_PATH",
 		"KOVALOOP_HOME",
-		"OPENCLAW_WORKSPACE_DIR",
-		"HERMES_CONFIG_DIR",
-		"PWD",
+		"EIGENFLUX_HOME",
+		"HOME",
 	} {
 		if value, ok := os.LookupEnv(key); ok {
 			env[key] = value
-		}
-	}
-	if _, ok := env["PWD"]; !ok {
-		if wd, err := os.Getwd(); err == nil {
-			env["PWD"] = wd
 		}
 	}
 	return env
 }
 
 type Config struct {
-	LedgerURL       string
-	LedgerFallback  string
-	AgentProfile    string
-	KovaloopHome    string
-	WorkspaceDir    string
-	HermesConfigDir string
-	WorkingDir      string
+	LedgerURL      string
+	LedgerFallback string
+	AgentProfile   string
+	KovaloopHome   string
+	EigenfluxHome  string
+	Home           string
 }
 
 func ConfigFromEnv(env EnvMap) Config {
@@ -49,12 +42,11 @@ func ConfigFromEnv(env EnvMap) Config {
 		ledgerURL = "https://ledger.kovaloop.ai"
 	}
 	return Config{
-		LedgerURL:       ledgerURL,
-		LedgerFallback:  env["KOVALOOP_LEDGER_FALLBACK_URL"],
-		AgentProfile:    env["KOVALOOP_AGENT_PROFILE_PATH"],
-		KovaloopHome:    env["KOVALOOP_HOME"],
-		WorkspaceDir:    env["OPENCLAW_WORKSPACE_DIR"],
-		HermesConfigDir: env["HERMES_CONFIG_DIR"],
-		WorkingDir:      env["PWD"],
+		LedgerURL:      ledgerURL,
+		LedgerFallback: env["KOVALOOP_LEDGER_FALLBACK_URL"],
+		AgentProfile:   env["KOVALOOP_AGENT_PROFILE_PATH"],
+		KovaloopHome:   env["KOVALOOP_HOME"],
+		EigenfluxHome:  env["EIGENFLUX_HOME"],
+		Home:           env["HOME"],
 	}
 }

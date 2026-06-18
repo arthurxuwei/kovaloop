@@ -42,13 +42,17 @@ func TestGenerateAndPersistCredentials(t *testing.T) {
 	}
 }
 
-func TestKovaloopDirPrefersConfigRoot(t *testing.T) {
-	cfg := Config{WorkspaceDir: "/home/node/.openclaw/workspace"}
-	if got := KovaloopDir(cfg); got != "/home/node/.openclaw/.kovaloop" {
+func TestKovaloopDirAnchorsToHomeOpenclaw(t *testing.T) {
+	// Anchors to OpenClaw's own config dir, independent of EigenFlux location.
+	cfg := Config{Home: "/root", EigenfluxHome: "/home/node/.openclaw/.eigenflux"}
+	if got := KovaloopDir(cfg); got != "/root/.openclaw/.kovaloop" {
 		t.Fatalf("got %q", got)
 	}
-	cfg2 := Config{KovaloopHome: "/custom", WorkspaceDir: "/ws"}
-	if got := KovaloopDir(cfg2); got != "/custom/.kovaloop" {
+}
+
+func TestKovaloopDirHomeOverride(t *testing.T) {
+	cfg := Config{KovaloopHome: "/custom", Home: "/root"}
+	if got := KovaloopDir(cfg); got != "/custom/.kovaloop" {
 		t.Fatalf("override: got %q", got)
 	}
 }

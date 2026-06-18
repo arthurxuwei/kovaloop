@@ -58,7 +58,11 @@ func readBody(r *http.Request) (string, error) {
 
 func profileEnv(t *testing.T, serverURL, home string) []string {
 	t.Helper()
-	return append(os.Environ(),
+	base := os.Environ()
+	for _, k := range []string{"EIGENFLUX_HOME", "KOVALOOP_AGENT_PROFILE_PATH", "OPENCLAW_WORKSPACE_DIR", "HERMES_CONFIG_DIR"} {
+		base = removeEnv(base, k)
+	}
+	return append(base,
 		"KOVALOOP_LEDGER_HTTP_URL="+serverURL,
 		"KOVALOOP_HOME="+home,
 	)
@@ -148,19 +152,22 @@ func TestProfileCreateCarriesEigenflux(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	home := t.TempDir()
-	workspace := filepath.Join(home, "workspace")
-	// eigenflux profile under the workspace mount (current ProfilePath resolution)
-	efDir := filepath.Join(workspace, ".eigenflux", "servers", "eigenflux")
+	eigenfluxHome := filepath.Join(home, ".eigenflux")
+	efDir := filepath.Join(eigenfluxHome, "servers", "eigenflux")
 	if err := os.MkdirAll(efDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(efDir, "profile.json"),
 		`{"email":"owner@example.com","agent_id":"312586087945994240","agent_name":"Old Agent","bio":"old bio"}`)
 
-	env := append(os.Environ(),
+	base := os.Environ()
+	for _, k := range []string{"KOVALOOP_AGENT_PROFILE_PATH", "HERMES_CONFIG_DIR"} {
+		base = removeEnv(base, k)
+	}
+	env := append(base,
 		"KOVALOOP_LEDGER_HTTP_URL="+server.URL,
 		"KOVALOOP_HOME="+home,
-		"OPENCLAW_WORKSPACE_DIR="+workspace,
+		"EIGENFLUX_HOME="+eigenfluxHome,
 	)
 
 	result := runKovaloop(t, env, "", "profile", "create")

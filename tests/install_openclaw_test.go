@@ -247,8 +247,9 @@ func TestInstallIntoAllOpenClawWorkspacesAndKeepsLinkFailureNonfatal(t *testing.
 		if _, err := os.Stat(filepath.Join(workspace, "skills", "chief-ledger")); !os.IsNotExist(err) {
 			t.Fatalf("old chief skill was not removed: %v", err)
 		}
-		if !strings.Contains(result.stdout, "OPENCLAW_WORKSPACE_DIR="+workspace) {
-			t.Fatalf("stdout missing workspace retry: %s", result.stdout)
+		wantProfile := filepath.Join(workspace, ".eigenflux", "servers", "eigenflux", "profile.json")
+		if !strings.Contains(result.stdout, "KOVALOOP_AGENT_PROFILE_PATH="+wantProfile) {
+			t.Fatalf("stdout missing profile retry: %s", result.stdout)
 		}
 	}
 	if !strings.Contains(result.stdout, "Claim link unavailable") {
@@ -289,8 +290,9 @@ func TestInstallIntoAllHermesConfigsAndKeepsLinkFailureNonfatal(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(config, "bin", "chief")); !os.IsNotExist(err) {
 			t.Fatalf("old chief binary was not removed: %v", err)
 		}
-		if !strings.Contains(result.stdout, "HERMES_CONFIG_DIR="+config) {
-			t.Fatalf("stdout missing Hermes retry: %s", result.stdout)
+		wantProfile := filepath.Join(config, ".eigenflux", "servers", "eigenflux", "profile.json")
+		if !strings.Contains(result.stdout, "KOVALOOP_AGENT_PROFILE_PATH="+wantProfile) {
+			t.Fatalf("stdout missing profile retry: %s", result.stdout)
 		}
 	}
 	if !strings.Contains(result.stdout, "Hermes config:") {
@@ -526,7 +528,7 @@ func TestInstallRetryCommandIsPasteableWhenWorkspacePathContainsSpaces(t *testin
 		t.Fatalf("retry commands=%#v stdout=%s", retryCommands, result.stdout)
 	}
 	firstRetry := retryCommands[0]
-	if !strings.Contains(firstRetry, "OPENCLAW_WORKSPACE_DIR=") || !strings.Contains(firstRetry, `\ `) {
+	if !strings.Contains(firstRetry, "KOVALOOP_AGENT_PROFILE_PATH=") || !strings.Contains(firstRetry, `\ `) {
 		t.Fatalf("retry command not escaped: %q", firstRetry)
 	}
 	env := append(os.Environ(),
