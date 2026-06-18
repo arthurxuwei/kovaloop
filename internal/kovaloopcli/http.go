@@ -48,6 +48,55 @@ func postRawJSON(cfg Config, path string, body json.RawMessage) ([]byte, error) 
 	return doRaw(http.MethodPost, cfg.LedgerURL, cfg.LedgerFallback, path, body)
 }
 
+// patchRaw sends a PATCH with the exact body bytes and caller-supplied headers
+// (used for signed agent requests, where the signed bytes must be transmitted unchanged).
+func patchRaw(cfg Config, path string, body []byte, headers map[string]string) ([]byte, error) {
+	data, retryable, err := doRawHeadersOnce(http.MethodPatch, cfg.LedgerURL, path, body, headers)
+	if err != nil {
+		if !retryable || cfg.LedgerFallback == "" {
+			return nil, err
+		}
+		data, _, err = doRawHeadersOnce(http.MethodPatch, cfg.LedgerFallback, path, body, headers)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return data, nil
+}
+
+func doRawHeadersOnce(method string, base string, path string, body []byte, headers map[string]string) ([]byte, bool, error) {
+	url := strings.TrimRight(base, "/") + path
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequest(method, url, reader)
+	if err != nil {
+		return nil, true, err
+	}
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, true, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, true, fmt.Errorf("ledger response read failed: %s", err.Error())
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, true, fmt.Errorf("ledger request failed: HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+	return data, false, nil
+}
+
 func doJSON(method string, primary string, fallback string, path string, body []byte, out any) error {
 	data, err := doRaw(method, primary, fallback, path, body)
 	if err != nil {
