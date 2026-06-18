@@ -66,6 +66,18 @@ func LoadCredentials(path string) (Credentials, error) {
 	return c, nil
 }
 
+func LoadLocalProfile(path string) (LocalProfile, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return LocalProfile{}, err
+	}
+	var p LocalProfile
+	if err := json.Unmarshal(data, &p); err != nil {
+		return LocalProfile{}, err
+	}
+	return p, nil
+}
+
 func SaveLocalProfile(path string, p LocalProfile) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err

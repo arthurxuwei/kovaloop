@@ -22,6 +22,21 @@ func writeEigenfluxProfile(t *testing.T, root, content string) string {
 	return home
 }
 
+// writeLocalKovaloopProfile writes a canonical .kovaloop/profile.json under
+// <root>/.kovaloop and returns the value to set as KOVALOOP_HOME.
+func writeLocalKovaloopProfile(t *testing.T, root, agentID, agentName string) string {
+	t.Helper()
+	p := filepath.Join(root, ".kovaloop", "profile.json")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"schemaVersion":1,"agentId":"` + agentID + `","agentName":"` + agentName + `"}`
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
 func TestProfilePathUsesEigenfluxHomeBeforeHome(t *testing.T) {
 	cfg := Config{EigenfluxHome: "/home/node/.openclaw/.eigenflux", Home: "/root"}
 	want := "/home/node/.openclaw/.eigenflux/servers/eigenflux/profile.json"

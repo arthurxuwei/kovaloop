@@ -27,6 +27,13 @@ Environment:
   EIGENFLUX_HOME                  read-only: EigenFlux home, used to import an existing EigenFlux profile (else $HOME/.eigenflux)
 `
 
+// claimLinkRequest is the claim-link payload: the canonical agentId is the only
+// identity the server needs; ownership email is bound by the web OAuth login.
+type claimLinkRequest struct {
+	AgentID   string `json:"agentId"`
+	AgentName string `json:"agentName"`
+}
+
 func Run(args []string, stdout io.Writer, stderr io.Writer, env EnvMap) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
 		fmt.Fprint(stdout, usageText)
@@ -39,16 +46,12 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, env EnvMap) int {
 	if args[0] == "claim" {
 		if len(args) == 2 && args[1] == "link" {
 			cfg := ConfigFromEnv(env)
-			profile, err := LoadProfile(ProfilePath(cfg))
-			if err != nil {
-				fmt.Fprintln(stderr, err.Error())
+			local, err := LoadLocalProfile(ProfileJSONPath(cfg))
+			if err != nil || local.AgentID == "" {
+				fmt.Fprintln(stderr, "no local KovaLoop profile; run 'kovaloop profile create' first")
 				return 2
 			}
-			body, err := ClaimPayload(profile)
-			if err != nil {
-				fmt.Fprintln(stderr, err.Error())
-				return 2
-			}
+			body := claimLinkRequest{AgentID: local.AgentID, AgentName: local.AgentName}
 			var response ClaimResponse
 			if err := postJSON(cfg, "/ledger/claims/link", body, &response); err != nil {
 				fmt.Fprintln(stderr, err.Error())

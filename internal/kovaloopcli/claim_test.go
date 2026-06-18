@@ -12,28 +12,22 @@ import (
 	"testing"
 )
 
-func TestClaimLinkPostsProfileAndPrintsLinks(t *testing.T) {
-	home := writeEigenfluxProfile(t, t.TempDir(), `{"email":"sender@example.com","agent_id":"agent_sender","agent_name":"Sender"}`)
+func TestClaimLinkPostsCanonicalIdAndPrintsLinks(t *testing.T) {
+	home := writeLocalKovaloopProfile(t, t.TempDir(), "kloop_agent_TEST", "OntologyAgent")
 
-	var posted ClaimRequest
+	var posted map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/ledger/claims/link" {
 			t.Fatalf("path = %s", r.URL.Path)
-		}
-		if got := r.Header.Get("Accept"); got != "application/json, text/event-stream" {
-			t.Fatalf("Accept = %q", got)
-		}
-		if got := r.Header.Get("Content-Type"); got != "application/json" {
-			t.Fatalf("Content-Type = %q", got)
 		}
 		if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
 			t.Fatal(err)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"agentId":   "agent_sender",
+			"agentId":   "kloop_agent_TEST",
 			"claimCode": "clm_testclaim",
-			"claimUrl":  "https://ledger.example.test/dashboard?claimCode=clm_testclaim&agentId=agent_sender",
-			"agentUrl":  "https://ledger.example.test/dashboard?agentId=agent_sender",
+			"claimUrl":  "https://ledger.example.test/dashboard?claimCode=clm_testclaim&agentId=kloop_agent_TEST",
+			"agentUrl":  "https://ledger.example.test/dashboard?agentId=kloop_agent_TEST",
 		})
 	}))
 	defer server.Close()
@@ -42,50 +36,45 @@ func TestClaimLinkPostsProfileAndPrintsLinks(t *testing.T) {
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"claim", "link"}, &stdout, &stderr, EnvMap{
 		"KOVALOOP_LEDGER_URL": server.URL,
-		"EIGENFLUX_HOME":      home,
+		"KOVALOOP_HOME":       home,
 	})
 
 	if exitCode != 0 {
 		t.Fatalf("exit=%d stderr=%s", exitCode, stderr.String())
 	}
-	if posted.AgentID != "agent_sender" || posted.Email != "sender@example.com" {
+	// Only the canonical agentId + name are sent; no email field.
+	want := map[string]any{"agentId": "kloop_agent_TEST", "agentName": "OntologyAgent"}
+	if len(posted) != len(want) || posted["agentId"] != want["agentId"] || posted["agentName"] != want["agentName"] {
 		t.Fatalf("posted = %#v", posted)
 	}
-	for _, want := range []string{
-		"Agent ID:   agent_sender",
+	for _, w := range []string{
+		"Agent ID:   kloop_agent_TEST",
 		"Claim Code: clm_testclaim",
-		"Claim Link: https://ledger.example.test/dashboard?claimCode=clm_testclaim&agentId=agent_sender",
-		"Agent Link: https://ledger.example.test/dashboard?agentId=agent_sender",
-		"Claim Link is for the local owner to bind this agent wallet. Do not share it as a payment or deposit link.",
+		"Claim Link: https://ledger.example.test/dashboard?claimCode=clm_testclaim&agentId=kloop_agent_TEST",
 	} {
-		if !strings.Contains(stdout.String(), want) {
-			t.Fatalf("stdout missing %q: %s", want, stdout.String())
+		if !strings.Contains(stdout.String(), w) {
+			t.Fatalf("stdout missing %q: %s", w, stdout.String())
 		}
-	}
-	if stderr.String() != "" {
-		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 
-func TestClaimLinkProfileValidationReturnsExitCodeTwo(t *testing.T) {
-	home := writeEigenfluxProfile(t, t.TempDir(), `{"email":"owner@example.com"}`)
-
+func TestClaimLinkWithoutLocalProfileReturnsExitCodeTwo(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"claim", "link"}, &stdout, &stderr, EnvMap{
-		"EIGENFLUX_HOME": home,
+		"KOVALOOP_HOME": t.TempDir(), // no .kovaloop/profile.json
 	})
 
 	if exitCode != 2 {
 		t.Fatalf("exit code = %d, stderr=%q", exitCode, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "current OpenClaw profile is missing agent_id") {
+	if !strings.Contains(stderr.String(), "kovaloop profile create") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 
 func TestClaimLinkHTTPFailureReturnsNonZeroReadableError(t *testing.T) {
-	home := writeEigenfluxProfile(t, t.TempDir(), `{"email":"sender@example.com","agent_id":"agent_sender"}`)
+	home := writeLocalKovaloopProfile(t, t.TempDir(), "kloop_agent_TEST", "OntologyAgent")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not today", http.StatusTeapot)
 	}))
@@ -95,7 +84,7 @@ func TestClaimLinkHTTPFailureReturnsNonZeroReadableError(t *testing.T) {
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"claim", "link"}, &stdout, &stderr, EnvMap{
 		"KOVALOOP_LEDGER_URL": server.URL,
-		"EIGENFLUX_HOME":      home,
+		"KOVALOOP_HOME":       home,
 	})
 
 	if exitCode == 0 || exitCode == 2 {

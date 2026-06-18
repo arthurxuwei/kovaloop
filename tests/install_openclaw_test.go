@@ -20,16 +20,24 @@ type claimLedgerStub struct {
 }
 
 func (s *claimLedgerStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var body map[string]any
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+	}
+
+	// profile create mints the canonical agentId that claim link then uses.
+	if r.Method == http.MethodPost && r.URL.Path == "/ledger/profiles" {
+		writeJSON(w, http.StatusOK, map[string]any{"profile": map[string]any{
+			"agentId":   "kloop_agent_INSTALL",
+			"agentName": asString(body["agentName"]),
+		}})
+		return
+	}
 	if r.Method != http.MethodPost || r.URL.Path != "/ledger/claims/link" {
 		http.NotFound(w, r)
 		return
 	}
 
-	var body map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
 	s.mu.Lock()
 	s.claims = append(s.claims, body)
 	s.mu.Unlock()
@@ -389,16 +397,15 @@ func TestInstallPrintsClaimCodeAndLinkWhenLedgerIsAvailable(t *testing.T) {
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
+	// profile create mints the canonical id; claim link posts only {agentId, agentName}.
 	assertJSONMapEqual(t, stub.postedClaims()[0], map[string]any{
-		"agentId":          "runtime-openclaw-x",
-		"agentName":        "runtime-openclaw-x",
-		"email":            "owner@example.com",
-		"agentDescription": "",
+		"agentId":   "kloop_agent_INSTALL",
+		"agentName": "runtime-openclaw-x",
 	})
-	if !strings.Contains(result.stdout, "Claim Code: clm_runtime-openclaw-x") {
+	if !strings.Contains(result.stdout, "Claim Code: clm_kloop_agent_INSTALL") {
 		t.Fatalf("stdout=%s", result.stdout)
 	}
-	if !strings.Contains(result.stdout, "Claim Link: https://ledger.example.test/dashboard?claimCode=clm_runtime-openclaw-x&agentId=runtime-openclaw-x") {
+	if !strings.Contains(result.stdout, "Claim Link: https://ledger.example.test/dashboard?claimCode=clm_kloop_agent_INSTALL&agentId=kloop_agent_INSTALL") {
 		t.Fatalf("stdout=%s", result.stdout)
 	}
 }
@@ -420,12 +427,10 @@ func TestInstallPrintsClaimCodeAndLinkForHermesWhenLedgerIsAvailable(t *testing.
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
 	assertJSONMapEqual(t, stub.postedClaims()[0], map[string]any{
-		"agentId":          "runtime-hermes-x",
-		"agentName":        "runtime-hermes-x",
-		"email":            "owner@example.com",
-		"agentDescription": "",
+		"agentId":   "kloop_agent_INSTALL",
+		"agentName": "runtime-hermes-x",
 	})
-	if !strings.Contains(result.stdout, "Claim Code: clm_runtime-hermes-x") {
+	if !strings.Contains(result.stdout, "Claim Code: clm_kloop_agent_INSTALL") {
 		t.Fatalf("stdout=%s", result.stdout)
 	}
 }
