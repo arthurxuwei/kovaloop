@@ -37,7 +37,7 @@ func TestLedgerStateAggregatesProfileScopedEndpoints(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"ledger", "state"}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_LEDGER_HTTP_URL":    server.URL,
+		"KOVALOOP_LEDGER_URL":         server.URL,
 		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
 	})
 
@@ -119,7 +119,7 @@ func TestLedgerHealthPrintsRawBody(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"ledger", "health"}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_LEDGER_HTTP_URL": server.URL,
+		"KOVALOOP_LEDGER_URL": server.URL,
 	})
 
 	if exitCode != 0 {
@@ -127,37 +127,5 @@ func TestLedgerHealthPrintsRawBody(t *testing.T) {
 	}
 	if stdout.String() != "ok" {
 		t.Fatalf("stdout = %q", stdout.String())
-	}
-}
-
-func TestGetRawRetriesFallbackWhenPrimaryFails(t *testing.T) {
-	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "primary unavailable", http.StatusBadGateway)
-	}))
-	defer primary.Close()
-
-	fallbackCalls := 0
-	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fallbackCalls++
-		if r.URL.Path != "/health" {
-			t.Fatalf("path = %s", r.URL.Path)
-		}
-		fmt.Fprint(w, "fallback ok")
-	}))
-	defer fallback.Close()
-
-	body, err := getRaw(Config{
-		LedgerURL:      primary.URL,
-		LedgerFallback: fallback.URL,
-	}, "/health")
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fallbackCalls != 1 {
-		t.Fatalf("fallback calls = %d", fallbackCalls)
-	}
-	if string(body) != "fallback ok" {
-		t.Fatalf("body = %q", string(body))
 	}
 }

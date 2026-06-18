@@ -99,7 +99,7 @@ func runInstall(t *testing.T, root string, extraEnv map[string]*string) commandR
 	t.Helper()
 	env := append(os.Environ(),
 		"KOVALOOP_INSTALL_BIN_DIR="+testAssetDir,
-		"KOVALOOP_LEDGER_HTTP_URL=http://127.0.0.1:9",
+		"KOVALOOP_LEDGER_URL=http://127.0.0.1:9",
 	)
 	for key, value := range extraEnv {
 		env = removeEnv(env, key)
@@ -362,8 +362,8 @@ func TestInstallPrintsClaimCodeAndLinkWhenLedgerIsAvailable(t *testing.T) {
 	target := filepath.Join(root, "runtime-openclaw-x", "workspace")
 
 	result := runInstall(t, root, map[string]*string{
-		"OPENCLAW_WORKSPACE_DIR":   envValue(target),
-		"KOVALOOP_LEDGER_HTTP_URL": envValue(server.URL),
+		"OPENCLAW_WORKSPACE_DIR": envValue(target),
+		"KOVALOOP_LEDGER_URL":    envValue(server.URL),
 	})
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
@@ -391,8 +391,8 @@ func TestInstallPrintsClaimCodeAndLinkForHermesWhenLedgerIsAvailable(t *testing.
 	target := filepath.Join(root, "runtime-hermes-x", "config")
 
 	result := runInstall(t, root, map[string]*string{
-		"HERMES_CONFIG_DIR":        envValue(target),
-		"KOVALOOP_LEDGER_HTTP_URL": envValue(server.URL),
+		"HERMES_CONFIG_DIR":   envValue(target),
+		"KOVALOOP_LEDGER_URL": envValue(server.URL),
 	})
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
@@ -533,7 +533,7 @@ func TestInstallRetryCommandIsPasteableWhenWorkspacePathContainsSpaces(t *testin
 	}
 	env := append(os.Environ(),
 		"KOVALOOP_INSTALL_BIN_DIR="+testAssetDir,
-		"KOVALOOP_LEDGER_HTTP_URL=http://127.0.0.1:9",
+		"KOVALOOP_LEDGER_URL=http://127.0.0.1:9",
 	)
 	retry := runCommand(t, env, root, "sh", "-c", firstRetry)
 	if retry.code == 0 || retry.code == 127 {

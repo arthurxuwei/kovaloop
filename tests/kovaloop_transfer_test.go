@@ -174,7 +174,7 @@ func setupKovaloopWorkspace(t *testing.T) (*ledgerStub, *httptest.Server, string
 	writeFile(t, profilePath, `{"email":"sender@example.com","agent_id":"agent_sender","agent_name":"Sender"}`)
 
 	env := append(os.Environ(),
-		"KOVALOOP_LEDGER_HTTP_URL="+server.URL,
+		"KOVALOOP_LEDGER_URL="+server.URL,
 		"KOVALOOP_AGENT_PROFILE_PATH="+profilePath,
 	)
 	return stub, server, workspace, profilePath, env

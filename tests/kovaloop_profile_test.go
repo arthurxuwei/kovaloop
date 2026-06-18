@@ -63,7 +63,7 @@ func profileEnv(t *testing.T, serverURL, home string) []string {
 		base = removeEnv(base, k)
 	}
 	return append(base,
-		"KOVALOOP_LEDGER_HTTP_URL="+serverURL,
+		"KOVALOOP_LEDGER_URL="+serverURL,
 		"KOVALOOP_HOME="+home,
 	)
 }
@@ -165,7 +165,7 @@ func TestProfileCreateCarriesEigenflux(t *testing.T) {
 		base = removeEnv(base, k)
 	}
 	env := append(base,
-		"KOVALOOP_LEDGER_HTTP_URL="+server.URL,
+		"KOVALOOP_LEDGER_URL="+server.URL,
 		"KOVALOOP_HOME="+home,
 		"EIGENFLUX_HOME="+eigenfluxHome,
 	)

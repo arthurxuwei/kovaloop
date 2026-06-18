@@ -34,7 +34,7 @@ func TestLedgerTransferPostsValidatedPayload(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"ledger", "transfer", payload}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_LEDGER_HTTP_URL":    server.URL,
+		"KOVALOOP_LEDGER_URL":         server.URL,
 		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
 	})
 

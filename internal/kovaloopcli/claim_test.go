@@ -48,7 +48,7 @@ func TestClaimLinkPostsProfileAndPrintsLinks(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"claim", "link"}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_LEDGER_HTTP_URL":    server.URL,
+		"KOVALOOP_LEDGER_URL":         server.URL,
 		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
 	})
 
@@ -107,7 +107,7 @@ func TestClaimLinkHTTPFailureReturnsNonZeroReadableError(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"claim", "link"}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_LEDGER_HTTP_URL":    server.URL,
+		"KOVALOOP_LEDGER_URL":         server.URL,
 		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
 	})
 
@@ -121,87 +121,15 @@ func TestClaimLinkHTTPFailureReturnsNonZeroReadableError(t *testing.T) {
 	}
 }
 
-func TestPostJSONRetriesFallbackWhenPrimaryRequestFails(t *testing.T) {
-	fallbackCalls := 0
-	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fallbackCalls++
-		if r.URL.Path != "/ledger/claims/link" {
-			t.Fatalf("path = %s", r.URL.Path)
-		}
-		if got := r.Header.Get("Accept"); got != "application/json, text/event-stream" {
-			t.Fatalf("Accept = %q", got)
-		}
-		if got := r.Header.Get("Content-Type"); got != "application/json" {
-			t.Fatalf("Content-Type = %q", got)
-		}
-		_ = json.NewEncoder(w).Encode(ClaimResponse{AgentID: "agent_sender"})
-	}))
-	defer fallback.Close()
-
-	var response ClaimResponse
-	err := postJSON(Config{
-		LedgerURL:      "http://127.0.0.1:1",
-		LedgerFallback: fallback.URL,
-	}, "/ledger/claims/link", ClaimRequest{AgentID: "agent_sender"}, &response)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fallbackCalls != 1 {
-		t.Fatalf("fallback calls = %d", fallbackCalls)
-	}
-	if response.AgentID != "agent_sender" {
-		t.Fatalf("response = %#v", response)
-	}
-}
-
-func TestPostJSONRetriesFallbackWhenPrimaryReturnsHTTPFailure(t *testing.T) {
-	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "primary unavailable", http.StatusBadGateway)
-	}))
-	defer primary.Close()
-
-	fallbackCalls := 0
-	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fallbackCalls++
-		_ = json.NewEncoder(w).Encode(ClaimResponse{AgentID: "agent_fallback"})
-	}))
-	defer fallback.Close()
-
-	var response ClaimResponse
-	err := postJSON(Config{
-		LedgerURL:      primary.URL,
-		LedgerFallback: fallback.URL,
-	}, "/ledger/claims/link", ClaimRequest{AgentID: "agent_sender"}, &response)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fallbackCalls != 1 {
-		t.Fatalf("fallback calls = %d", fallbackCalls)
-	}
-	if response.AgentID != "agent_fallback" {
-		t.Fatalf("response = %#v", response)
-	}
-}
-
-func TestPostJSONDoesNotRetryFallbackOrMutateOutputWhenPrimaryReturnsInvalidJSON(t *testing.T) {
+func TestPostJSONDoesNotMutateOutputWhenPrimaryReturnsInvalidJSON(t *testing.T) {
 	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"agentId":"agent_primary",`)
 	}))
 	defer primary.Close()
 
-	fallbackCalls := 0
-	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fallbackCalls++
-		_ = json.NewEncoder(w).Encode(ClaimResponse{AgentID: "agent_fallback"})
-	}))
-	defer fallback.Close()
-
 	response := ClaimResponse{AgentID: "agent_existing"}
 	err := postJSON(Config{
-		LedgerURL:      primary.URL,
-		LedgerFallback: fallback.URL,
+		LedgerURL: primary.URL,
 	}, "/ledger/claims/link", ClaimRequest{AgentID: "agent_sender"}, &response)
 
 	if err == nil {
@@ -209,9 +137,6 @@ func TestPostJSONDoesNotRetryFallbackOrMutateOutputWhenPrimaryReturnsInvalidJSON
 	}
 	if !strings.Contains(err.Error(), "ledger response was not valid JSON") {
 		t.Fatalf("err = %v", err)
-	}
-	if fallbackCalls != 0 {
-		t.Fatalf("fallback calls = %d", fallbackCalls)
 	}
 	if response.AgentID != "agent_existing" {
 		t.Fatalf("response was mutated: %#v", response)
