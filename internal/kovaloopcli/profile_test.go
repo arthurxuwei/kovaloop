@@ -263,3 +263,22 @@ func TestClaimPayloadRequiresAgentIDAndEmail(t *testing.T) {
 		})
 	}
 }
+
+func TestProfilePathResolvesConfigRootWhenWorkspaceMissing(t *testing.T) {
+	root := t.TempDir()
+	workspace := filepath.Join(root, "workspace")
+	// profile lives at the config root (parent of workspace), not under workspace
+	rootProfileDir := filepath.Join(root, ".eigenflux", "servers", "eigenflux")
+	if err := os.MkdirAll(rootProfileDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rootProfile := filepath.Join(rootProfileDir, "profile.json")
+	if err := os.WriteFile(rootProfile, []byte(`{"agent_id":"x"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Config{WorkspaceDir: workspace}
+	if got := ProfilePath(cfg); got != rootProfile {
+		t.Fatalf("ProfilePath = %q, want %q", got, rootProfile)
+	}
+}

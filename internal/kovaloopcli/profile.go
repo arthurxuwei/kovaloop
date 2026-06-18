@@ -30,7 +30,17 @@ func ProfilePath(cfg Config) string {
 		return cfg.AgentProfile
 	}
 	if cfg.WorkspaceDir != "" {
-		return filepath.Join(cfg.WorkspaceDir, ".eigenflux", "servers", "eigenflux", "profile.json")
+		wsCandidate := filepath.Join(cfg.WorkspaceDir, ".eigenflux", "servers", "eigenflux", "profile.json")
+		if _, err := os.Stat(wsCandidate); err == nil {
+			return wsCandidate
+		}
+		// Some deployments keep the profile at the config root (parent of the
+		// workspace mount, e.g. ~/.openclaw/.eigenflux); fall back to it.
+		rootCandidate := filepath.Join(filepath.Dir(cfg.WorkspaceDir), ".eigenflux", "servers", "eigenflux", "profile.json")
+		if _, err := os.Stat(rootCandidate); err == nil {
+			return rootCandidate
+		}
+		return wsCandidate
 	}
 	if cfg.HermesConfigDir != "" {
 		for _, candidate := range []string{
