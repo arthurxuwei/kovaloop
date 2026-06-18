@@ -13,6 +13,7 @@ func ProcessEnv() EnvMap {
 		"KOVALOOP_LEDGER_HTTP_URL",
 		"KOVALOOP_LEDGER_FALLBACK_URL",
 		"KOVALOOP_AGENT_PROFILE_PATH",
+		"KOVALOOP_HOME",
 		"OPENCLAW_WORKSPACE_DIR",
 		"HERMES_CONFIG_DIR",
 		"PWD",
@@ -33,6 +34,7 @@ type Config struct {
 	LedgerURL       string
 	LedgerFallback  string
 	AgentProfile    string
+	KovaloopHome    string
 	WorkspaceDir    string
 	HermesConfigDir string
 	WorkingDir      string
@@ -50,6 +52,7 @@ func ConfigFromEnv(env EnvMap) Config {
 		LedgerURL:       ledgerURL,
 		LedgerFallback:  env["KOVALOOP_LEDGER_FALLBACK_URL"],
 		AgentProfile:    env["KOVALOOP_AGENT_PROFILE_PATH"],
+		KovaloopHome:    env["KOVALOOP_HOME"],
 		WorkspaceDir:    env["OPENCLAW_WORKSPACE_DIR"],
 		HermesConfigDir: env["HERMES_CONFIG_DIR"],
 		WorkingDir:      env["PWD"],
