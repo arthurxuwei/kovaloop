@@ -11,7 +11,7 @@ import (
 )
 
 func TestLedgerTransferPostsValidatedPayload(t *testing.T) {
-	profilePath := writeTransferProfile(t, `{"email":" Sender@Example.com ","agent_id":" agent_sender "}`)
+	home := writeTransferProfile(t, "agent_sender")
 
 	var posted map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +33,7 @@ func TestLedgerTransferPostsValidatedPayload(t *testing.T) {
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"ledger", "transfer", payload}, &stdout, &stderr, EnvMap{
 		"KOVALOOP_LEDGER_URL": server.URL,
-		"EIGENFLUX_HOME":      profilePath,
+		"KOVALOOP_HOME":       home,
 	})
 
 	if exitCode != 0 {
@@ -57,12 +57,12 @@ func TestLedgerTransferPostsValidatedPayload(t *testing.T) {
 }
 
 func TestLedgerTransferValidationErrors(t *testing.T) {
-	profilePath := writeTransferProfile(t, `{"email":"sender@example.com","agent_id":"agent_sender"}`)
+	home := writeTransferProfile(t, "agent_sender")
 	tests := []struct {
-		name       string
-		profile    string
-		payload    string
-		wantStderr string
+		name         string
+		emptyProfile bool
+		payload      string
+		wantStderr   string
 	}{
 		{
 			name:       "rejects explicit sender agent id",
@@ -135,10 +135,10 @@ func TestLedgerTransferValidationErrors(t *testing.T) {
 			wantStderr: "paymentContext.reason is required",
 		},
 		{
-			name:       "requires sender agent id",
-			profile:    `{"email":"sender@example.com"}`,
-			payload:    `{"toAgentId":"agent_receiver","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`,
-			wantStderr: "current OpenClaw profile is missing agent_id",
+			name:         "requires sender agent id",
+			emptyProfile: true,
+			payload:      `{"toAgentId":"agent_receiver","amount":"1000","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`,
+			wantStderr:   "no local KovaLoop profile",
 		},
 		{
 			name:       "rejects same sender and receiver agent",
@@ -149,14 +149,14 @@ func TestLedgerTransferValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := profilePath
-			if tt.profile != "" {
-				path = writeTransferProfile(t, tt.profile)
+			caseHome := home
+			if tt.emptyProfile {
+				caseHome = writeTransferProfile(t, "")
 			}
 			var stdout bytes.Buffer
 			var stderr bytes.Buffer
 			exitCode := Run([]string{"ledger", "transfer", tt.payload}, &stdout, &stderr, EnvMap{
-				"EIGENFLUX_HOME": path,
+				"KOVALOOP_HOME": caseHome,
 			})
 
 			if exitCode != 2 {
@@ -185,7 +185,7 @@ func TestLedgerTransferAmountParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
-			req, err := buildTransferRequest([]byte(tt.input), Profile{AgentID: "agent_sender"})
+			req, err := buildTransferRequest([]byte(tt.input), "agent_sender")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -197,7 +197,7 @@ func TestLedgerTransferAmountParsing(t *testing.T) {
 }
 
 func TestLedgerTransferRejectsDecimalAmountAtomic(t *testing.T) {
-	req, err := buildTransferRequest([]byte(`{"toAgentId":"agent_receiver","amount":"1.5USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`), Profile{AgentID: "agent_sender"})
+	req, err := buildTransferRequest([]byte(`{"toAgentId":"agent_receiver","amount":"1.5USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`), "agent_sender")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +205,7 @@ func TestLedgerTransferRejectsDecimalAmountAtomic(t *testing.T) {
 		t.Fatalf("amountAtomic = %q", req.AmountAtomic)
 	}
 
-	_, err = buildTransferRequest([]byte(`{"toAgentId":"agent_receiver","amountAtomic":"1.5USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`), Profile{AgentID: "agent_sender"})
+	_, err = buildTransferRequest([]byte(`{"toAgentId":"agent_receiver","amountAtomic":"1.5USDC","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"test"}}`), "agent_sender")
 	if err == nil {
 		t.Fatal("decimal amountAtomic was accepted")
 	}
@@ -214,9 +214,9 @@ func TestLedgerTransferRejectsDecimalAmountAtomic(t *testing.T) {
 	}
 }
 
-// writeTransferProfile writes an EigenFlux profile and returns the EIGENFLUX_HOME
-// value to set so the CLI resolves it.
-func writeTransferProfile(t *testing.T, body string) string {
+// writeTransferProfile writes a canonical .kovaloop profile with the given
+// agentId and returns the KOVALOOP_HOME value to set.
+func writeTransferProfile(t *testing.T, agentID string) string {
 	t.Helper()
-	return writeEigenfluxProfile(t, t.TempDir(), body)
+	return writeLocalKovaloopProfile(t, t.TempDir(), agentID, "Sender")
 }

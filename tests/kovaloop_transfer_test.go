@@ -165,17 +165,24 @@ func setupKovaloopWorkspace(t *testing.T) (*ledgerStub, *httptest.Server, string
 	server := httptest.NewServer(stub)
 	t.Cleanup(server.Close)
 
-	workspace := filepath.Join(t.TempDir(), "workspace")
-	profileDir := filepath.Join(workspace, ".eigenflux", "servers", "eigenflux")
-	if err := os.MkdirAll(profileDir, 0o755); err != nil {
+	home := t.TempDir()
+	workspace := filepath.Join(home, "workspace")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	profilePath := filepath.Join(profileDir, "profile.json")
-	writeFile(t, profilePath, `{"email":"sender@example.com","agent_id":"agent_sender","agent_name":"Sender"}`)
+	profilePath := filepath.Join(home, ".kovaloop", "profile.json")
+	if err := os.MkdirAll(filepath.Dir(profilePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFile(t, profilePath, map[string]any{
+		"schemaVersion": 1,
+		"agentId":       "agent_sender",
+		"agentName":     "Sender",
+	})
 
 	env := append(os.Environ(),
 		"KOVALOOP_LEDGER_URL="+server.URL,
-		"EIGENFLUX_HOME="+filepath.Join(workspace, ".eigenflux"),
+		"KOVALOOP_HOME="+home,
 	)
 	return stub, server, workspace, profilePath, env
 }
@@ -414,25 +421,6 @@ func TestIntegrationTransferResolvesRecipientEmailToAgentID(t *testing.T) {
 		"amountAtomic": "1",
 		"reason":       "Local user asked this agent to run an online transfer test",
 	})
-}
-
-func TestIntegrationTransferFindsProfileFromWorkspaceCWD(t *testing.T) {
-	stub, _, workspace, _, env := setupKovaloopWorkspace(t)
-	env = removeEnv(env, "OPENCLAW_WORKSPACE_DIR")
-	env = append(env, "PWD="+workspace)
-	payload := map[string]any{
-		"toAgentId":      "agent_receiver",
-		"amount":         "0.001 U",
-		"paymentContext": localUserTestContext(),
-	}
-
-	result := runKovaloop(t, env, workspace, "ledger", "transfer", marshalPayload(t, payload))
-	if result.code != 0 {
-		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
-	}
-	if got := stub.transfers()[0]["fromAgentId"]; got != "agent_sender" {
-		t.Fatalf("fromAgentId = %#v", got)
-	}
 }
 
 func TestIntegrationTransferAcceptsLocalUserRequestContext(t *testing.T) {

@@ -66,6 +66,16 @@ func LoadCredentials(path string) (Credentials, error) {
 	return c, nil
 }
 
+// CanonicalAgentID returns the canonical kloop_agent id from .kovaloop/profile.json.
+// All agent-scoped ledger operations key on this id, not the EigenFlux id.
+func CanonicalAgentID(cfg Config) (string, error) {
+	local, err := LoadLocalProfile(ProfileJSONPath(cfg))
+	if err != nil || local.AgentID == "" {
+		return "", fmt.Errorf("no local KovaLoop profile; run 'kovaloop profile create' first")
+	}
+	return local.AgentID, nil
+}
+
 func LoadLocalProfile(path string) (LocalProfile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

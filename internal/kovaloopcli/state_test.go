@@ -11,7 +11,7 @@ import (
 )
 
 func TestLedgerStateAggregatesProfileScopedEndpoints(t *testing.T) {
-	home := writeEigenfluxProfile(t, t.TempDir(), `{"email":"owner@example.com","agent_id":"agent/one"}`)
+	home := writeLocalKovaloopProfile(t, t.TempDir(), "agent/one", "Agent")
 
 	requests := []string{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +33,7 @@ func TestLedgerStateAggregatesProfileScopedEndpoints(t *testing.T) {
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"ledger", "state"}, &stdout, &stderr, EnvMap{
 		"KOVALOOP_LEDGER_URL": server.URL,
-		"EIGENFLUX_HOME":      home,
+		"KOVALOOP_HOME":       home,
 	})
 
 	if exitCode != 0 {
@@ -82,18 +82,16 @@ func TestLedgerStateAggregatesProfileScopedEndpoints(t *testing.T) {
 }
 
 func TestLedgerStateRequiresProfileAgentID(t *testing.T) {
-	home := writeEigenfluxProfile(t, t.TempDir(), `{"email":"owner@example.com"}`)
-
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"ledger", "state"}, &stdout, &stderr, EnvMap{
-		"EIGENFLUX_HOME": home,
+		"KOVALOOP_HOME": t.TempDir(), // no .kovaloop/profile.json
 	})
 
 	if exitCode != 2 {
 		t.Fatalf("exit code = %d", exitCode)
 	}
-	if !strings.Contains(stderr.String(), "current OpenClaw profile is missing agent_id") {
+	if !strings.Contains(stderr.String(), "no local KovaLoop profile") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }

@@ -31,13 +31,9 @@ type ledgerStatePayload struct {
 }
 
 func LedgerState(cfg Config) ([]byte, error) {
-	profile, err := LoadProfile(ProfilePath(cfg))
+	agentID, err := CanonicalAgentID(cfg)
 	if err != nil {
 		return nil, err
-	}
-	agentID := profile.normalizedAgentID()
-	if agentID == "" {
-		return nil, fmt.Errorf("current OpenClaw profile is missing agent_id")
 	}
 
 	escapedPathAgentID := url.PathEscape(agentID)

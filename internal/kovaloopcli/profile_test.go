@@ -7,21 +7,6 @@ import (
 	"testing"
 )
 
-// writeEigenfluxProfile writes an EigenFlux profile under <root>/.eigenflux and
-// returns the value to set as EIGENFLUX_HOME so the CLI resolves it.
-func writeEigenfluxProfile(t *testing.T, root, content string) string {
-	t.Helper()
-	home := filepath.Join(root, ".eigenflux")
-	p := filepath.Join(home, "servers", "eigenflux", "profile.json")
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return home
-}
-
 // writeLocalKovaloopProfile writes a canonical .kovaloop/profile.json under
 // <root>/.kovaloop and returns the value to set as KOVALOOP_HOME.
 func writeLocalKovaloopProfile(t *testing.T, root, agentID, agentName string) string {

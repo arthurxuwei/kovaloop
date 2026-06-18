@@ -103,7 +103,7 @@ func runLedger(args []string, stdout io.Writer, stderr io.Writer, cfg Config) in
 		body, err := LedgerState(cfg)
 		if err != nil {
 			fmt.Fprintln(stderr, err.Error())
-			if strings.Contains(err.Error(), "OpenClaw profile") || strings.Contains(err.Error(), "missing agent_id") {
+			if strings.Contains(err.Error(), "KovaLoop profile") || strings.Contains(err.Error(), "OpenClaw profile") || strings.Contains(err.Error(), "missing agent_id") {
 				return 2
 			}
 			return 1
