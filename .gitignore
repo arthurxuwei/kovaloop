@@ -4,3 +4,4 @@ __pycache__/
 bin/kovaloop
 dist/
 tmp/
+.kovaloop/

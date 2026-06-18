@@ -167,6 +167,9 @@ CLI:                $bin_dest/kovaloop
 Skills:             $skills_dest
 EOF
 
+  # Mint the KovaLoop identity if absent (idempotent: reused when credentials exist).
+  env "$env_name=$root" "$bin_dest/kovaloop" profile create || true
+
   if env "$env_name=$root" "$bin_dest/kovaloop" claim link; then
     return 0
   fi
