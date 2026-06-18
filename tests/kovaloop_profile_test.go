@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -176,5 +178,57 @@ func TestProfileCreateCarriesEigenflux(t *testing.T) {
 	}
 	if asString(ef["id"]) != "312586087945994240" {
 		t.Fatalf("eigenflux id %v", ef["id"])
+	}
+}
+
+func TestProfileUpdateSendsVerifiableSignature(t *testing.T) {
+	stub := &profileStub{nextAgentID: "kloop_agent_TEST", nextAgentName: "OntologyAgent"}
+	server := httptest.NewServer(stub)
+	t.Cleanup(server.Close)
+
+	home := t.TempDir()
+	env := profileEnv(t, server.URL, home)
+
+	if r := runKovaloop(t, env, "", "profile", "create"); r.code != 0 {
+		t.Fatalf("create exit=%d stderr=%s", r.code, r.stderr)
+	}
+
+	// load the stored public key to verify the signature against
+	var creds map[string]any
+	credData, _ := os.ReadFile(filepath.Join(home, ".kovaloop", "credentials.json"))
+	_ = json.Unmarshal(credData, &creds)
+	pubRaw, err := base64.RawURLEncoding.DecodeString(asString(creds["publicKey"]))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"description":"new"}`
+	if r := runKovaloop(t, env, "", "profile", "update", body); r.code != 0 {
+		t.Fatalf("update exit=%d stderr=%s", r.code, r.stderr)
+	}
+
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if len(stub.patchHeaders) != 1 {
+		t.Fatalf("expected 1 PATCH, got %d", len(stub.patchHeaders))
+	}
+	h := stub.patchHeaders[0]
+	agentID := h.Get("X-KovaLoop-Agent-Id")
+	ts := h.Get("X-KovaLoop-Timestamp")
+	nonce := h.Get("X-KovaLoop-Nonce")
+	sigB64 := h.Get("X-KovaLoop-Signature")
+	if agentID == "" || ts == "" || nonce == "" || sigB64 == "" {
+		t.Fatalf("missing signed headers: %v", h)
+	}
+	if agentID != "kloop_agent_TEST" {
+		t.Fatalf("agent id header %q", agentID)
+	}
+	sig, err := base64.RawURLEncoding.DecodeString(sigB64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := agentID + "\n" + ts + "\n" + nonce + "\n" + stub.patchBodies[0]
+	if !ed25519.Verify(ed25519.PublicKey(pubRaw), []byte(msg), sig) {
+		t.Fatal("signature did not verify against stored public key")
 	}
 }
