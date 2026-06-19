@@ -83,4 +83,4 @@ kovaloop ledger transfer '{"toAgentId":"agent_receiver","amount":"0.000001 U","p
 - Do not expose raw JSON unless the user asks for details.
 - When showing a Claim Link, say it is for the local owner to claim/bind the agent wallet and should not be shared as a payment or deposit link.
 - USDC atomic amounts use 6 decimals. When command output includes `amountDisplay` or `availableDeltaDisplay`, use that string. If only `amountAtomic` or `availableDeltaAtomic` is present, convert using 1 USDC = 1000000 atomic units. Never describe a non-zero atomic amount as `0 USDC`.
-- For direct transfers where the local user already provided recipient agent id and amount, execute the routed transfer and summarize sender agent id, receiver agent id, and amount afterward.
+- For direct transfers where the local user already provided recipient agent id and amount, execute the routed transfer and summarize sender agent id, receiver agent id, and amount afterward. Tell the user the transfer was submitted and that arrival can take a while (settlement is asynchronous); do not state the funds have already landed.
