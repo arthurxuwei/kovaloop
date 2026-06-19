@@ -20,16 +20,24 @@ type claimLedgerStub struct {
 }
 
 func (s *claimLedgerStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var body map[string]any
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+	}
+
+	// profile create mints the canonical agentId that claim link then uses.
+	if r.Method == http.MethodPost && r.URL.Path == "/ledger/profiles" {
+		writeJSON(w, http.StatusOK, map[string]any{"profile": map[string]any{
+			"agentId":   "kloop_agent_INSTALL",
+			"agentName": asString(body["agentName"]),
+		}})
+		return
+	}
 	if r.Method != http.MethodPost || r.URL.Path != "/ledger/claims/link" {
 		http.NotFound(w, r)
 		return
 	}
 
-	var body map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
 	s.mu.Lock()
 	s.claims = append(s.claims, body)
 	s.mu.Unlock()
@@ -97,10 +105,14 @@ func envValue(value string) *string {
 
 func runInstall(t *testing.T, root string, extraEnv map[string]*string) commandResult {
 	t.Helper()
+	// HOME is set to the test root so the binary installs into <root>/.local/bin
+	// (the installer targets $HOME/.local/bin) instead of the real home dir.
 	env := append(os.Environ(),
 		"KOVALOOP_INSTALL_BIN_DIR="+testAssetDir,
-		"KOVALOOP_LEDGER_HTTP_URL=http://127.0.0.1:9",
+		"KOVALOOP_LEDGER_URL=http://127.0.0.1:9",
 	)
+	env = removeEnv(env, "HOME")
+	env = append(env, "HOME="+root)
 	for key, value := range extraEnv {
 		env = removeEnv(env, key)
 		if value != nil {
@@ -205,9 +217,10 @@ func testAssetBytes(t *testing.T) []byte {
 func TestInstallIntoAllOpenClawWorkspacesAndKeepsLinkFailureNonfatal(t *testing.T) {
 	root := t.TempDir()
 	createOpenClawWorkspaces(t, root)
+	// Old chief binary lives alongside the new one in $HOME/.local/bin (= root).
+	writeFile(t, filepath.Join(root, ".local", "bin", "chief"), "old chief")
 	for _, name := range []string{"runtime-openclaw-x", "runtime-openclaw-y"} {
 		workspace := filepath.Join(root, name, "workspace")
-		writeFile(t, filepath.Join(workspace, ".local", "bin", "chief"), "old chief")
 		writeFile(t, filepath.Join(workspace, "skills", "chief-ledger", "SKILL.md"), "old chief skill")
 	}
 
@@ -215,40 +228,44 @@ func TestInstallIntoAllOpenClawWorkspacesAndKeepsLinkFailureNonfatal(t *testing.
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
-	wantBytes := testAssetBytes(t)
+
+	// The binary is installed once, to $HOME/.local/bin (on PATH, beside eigenflux).
+	kovaloop := filepath.Join(root, ".local", "bin", "kovaloop")
+	gotBytes, err := os.ReadFile(kovaloop)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(gotBytes, testAssetBytes(t)) {
+		t.Fatalf("%s binary bytes mismatch", kovaloop)
+	}
+	version := runCommand(t, nil, "", kovaloop, "version")
+	if version.code != 0 {
+		t.Fatalf("version exit=%d stderr=%s", version.code, version.stderr)
+	}
+	if ok, _ := regexp.MatchString(`^kovaloop \d{4}\.\d{2}\.\d{2}\.\d+\n$`, version.stdout); !ok {
+		t.Fatalf("version stdout=%q", version.stdout)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".local", "bin", "chief")); !os.IsNotExist(err) {
+		t.Fatalf("old chief binary was not removed: %v", err)
+	}
+
+	// Skills are installed per-workspace, with references/ included.
 	for _, name := range []string{"runtime-openclaw-x", "runtime-openclaw-y"} {
 		workspace := filepath.Join(root, name, "workspace")
-		kovaloop := filepath.Join(workspace, ".local", "bin", "kovaloop")
-		gotBytes, err := os.ReadFile(kovaloop)
-		if err != nil {
+		if _, err := os.Stat(filepath.Join(workspace, "skills", "kovaloop-ledger", "SKILL.md")); err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Equal(gotBytes, wantBytes) {
-			t.Fatalf("%s binary bytes mismatch", kovaloop)
-		}
-		version := runCommand(t, nil, "", kovaloop, "version")
-		if version.code != 0 {
-			t.Fatalf("version exit=%d stderr=%s", version.code, version.stderr)
-		}
-		if ok, _ := regexp.MatchString(`^kovaloop \d{4}\.\d{2}\.\d{2}\.\d+\n$`, version.stdout); !ok {
-			t.Fatalf("version stdout=%q", version.stdout)
-		}
-		for _, skill := range []string{"kovaloop-ledger"} {
-			if _, err := os.Stat(filepath.Join(workspace, "skills", skill, "SKILL.md")); err != nil {
-				t.Fatal(err)
-			}
+		if _, err := os.Stat(filepath.Join(workspace, "skills", "kovaloop-ledger", "references", "onboarding.md")); err != nil {
+			t.Fatalf("skill references not installed: %v", err)
 		}
 		if _, err := os.Stat(filepath.Join(workspace, "skills", "kovaloop-a2a-service-trade")); !os.IsNotExist(err) {
 			t.Fatalf("escrow service-trade skill was installed: %v", err)
 		}
-		if _, err := os.Stat(filepath.Join(workspace, ".local", "bin", "chief")); !os.IsNotExist(err) {
-			t.Fatalf("old chief binary was not removed: %v", err)
-		}
 		if _, err := os.Stat(filepath.Join(workspace, "skills", "chief-ledger")); !os.IsNotExist(err) {
 			t.Fatalf("old chief skill was not removed: %v", err)
 		}
-		if !strings.Contains(result.stdout, "OPENCLAW_WORKSPACE_DIR="+workspace) {
-			t.Fatalf("stdout missing workspace retry: %s", result.stdout)
+		if !strings.Contains(result.stdout, "KOVALOOP_HOME="+filepath.Dir(workspace)) {
+			t.Fatalf("stdout missing home retry: %s", result.stdout)
 		}
 	}
 	if !strings.Contains(result.stdout, "Claim link unavailable") {
@@ -259,9 +276,9 @@ func TestInstallIntoAllOpenClawWorkspacesAndKeepsLinkFailureNonfatal(t *testing.
 func TestInstallIntoAllHermesConfigsAndKeepsLinkFailureNonfatal(t *testing.T) {
 	root := t.TempDir()
 	createHermesConfigs(t, root)
+	writeFile(t, filepath.Join(root, ".local", "bin", "chief"), "old chief")
 	for _, name := range []string{"runtime-hermes-x", "runtime-hermes-y"} {
 		config := filepath.Join(root, name, "config")
-		writeFile(t, filepath.Join(config, "bin", "chief"), "old chief")
 		writeFile(t, filepath.Join(config, "skills", "chief-ledger", "SKILL.md"), "old chief skill")
 	}
 
@@ -269,28 +286,32 @@ func TestInstallIntoAllHermesConfigsAndKeepsLinkFailureNonfatal(t *testing.T) {
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
-	wantBytes := testAssetBytes(t)
+
+	kovaloop := filepath.Join(root, ".local", "bin", "kovaloop")
+	gotBytes, err := os.ReadFile(kovaloop)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(gotBytes, testAssetBytes(t)) {
+		t.Fatalf("%s binary bytes mismatch", kovaloop)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".local", "bin", "chief")); !os.IsNotExist(err) {
+		t.Fatalf("old chief binary was not removed: %v", err)
+	}
+
 	for _, name := range []string{"runtime-hermes-x", "runtime-hermes-y"} {
 		config := filepath.Join(root, name, "config")
-		kovaloop := filepath.Join(config, "bin", "kovaloop")
-		gotBytes, err := os.ReadFile(kovaloop)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(gotBytes, wantBytes) {
-			t.Fatalf("%s binary bytes mismatch", kovaloop)
-		}
 		if _, err := os.Stat(filepath.Join(config, "skills", "kovaloop-ledger", "SKILL.md")); err != nil {
 			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(config, "skills", "kovaloop-ledger", "references", "onboarding.md")); err != nil {
+			t.Fatalf("skill references not installed: %v", err)
 		}
 		if _, err := os.Stat(filepath.Join(config, "skills", "chief-ledger")); !os.IsNotExist(err) {
 			t.Fatalf("old chief skill was not removed: %v", err)
 		}
-		if _, err := os.Stat(filepath.Join(config, "bin", "chief")); !os.IsNotExist(err) {
-			t.Fatalf("old chief binary was not removed: %v", err)
-		}
-		if !strings.Contains(result.stdout, "HERMES_CONFIG_DIR="+config) {
-			t.Fatalf("stdout missing Hermes retry: %s", result.stdout)
+		if !strings.Contains(result.stdout, "KOVALOOP_HOME="+config) {
+			t.Fatalf("stdout missing home retry: %s", result.stdout)
 		}
 	}
 	if !strings.Contains(result.stdout, "Hermes config:") {
@@ -324,12 +345,16 @@ func TestInstallExplicitOpenClawWorkspaceInstallsOnlyThatWorkspace(t *testing.T)
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
-	if _, err := os.Stat(filepath.Join(target, ".local", "bin", "kovaloop")); err != nil {
+	// Binary is global ($HOME/.local/bin); only the target workspace gets the skill.
+	if _, err := os.Stat(filepath.Join(root, ".local", "bin", "kovaloop")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "skills", "kovaloop-ledger", "SKILL.md")); err != nil {
 		t.Fatal(err)
 	}
 	other := filepath.Join(root, "runtime-openclaw-y", "workspace")
-	if _, err := os.Stat(filepath.Join(other, ".local", "bin", "kovaloop")); !os.IsNotExist(err) {
-		t.Fatalf("other workspace kovaloop exists or stat failed: %v", err)
+	if _, err := os.Stat(filepath.Join(other, "skills", "kovaloop-ledger")); !os.IsNotExist(err) {
+		t.Fatalf("other workspace skill exists or stat failed: %v", err)
 	}
 }
 
@@ -342,12 +367,15 @@ func TestInstallExplicitHermesConfigInstallsOnlyThatConfig(t *testing.T) {
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
-	if _, err := os.Stat(filepath.Join(target, "bin", "kovaloop")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, ".local", "bin", "kovaloop")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "skills", "kovaloop-ledger", "SKILL.md")); err != nil {
 		t.Fatal(err)
 	}
 	other := filepath.Join(root, "runtime-hermes-y", "config")
-	if _, err := os.Stat(filepath.Join(other, "bin", "kovaloop")); !os.IsNotExist(err) {
-		t.Fatalf("other Hermes config kovaloop exists or stat failed: %v", err)
+	if _, err := os.Stat(filepath.Join(other, "skills", "kovaloop-ledger")); !os.IsNotExist(err) {
+		t.Fatalf("other Hermes config skill exists or stat failed: %v", err)
 	}
 }
 
@@ -359,23 +387,25 @@ func TestInstallPrintsClaimCodeAndLinkWhenLedgerIsAvailable(t *testing.T) {
 	t.Cleanup(server.Close)
 	target := filepath.Join(root, "runtime-openclaw-x", "workspace")
 
+	// Simulate the runtime providing EIGENFLUX_HOME so claim link can resolve the
+	// EigenFlux profile (the installer never sets EIGENFLUX_* itself).
 	result := runInstall(t, root, map[string]*string{
-		"OPENCLAW_WORKSPACE_DIR":   envValue(target),
-		"KOVALOOP_LEDGER_HTTP_URL": envValue(server.URL),
+		"OPENCLAW_WORKSPACE_DIR": envValue(target),
+		"KOVALOOP_LEDGER_URL":    envValue(server.URL),
+		"EIGENFLUX_HOME":         envValue(filepath.Join(target, ".eigenflux")),
 	})
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
+	// profile create mints the canonical id; claim link posts only {agentId, agentName}.
 	assertJSONMapEqual(t, stub.postedClaims()[0], map[string]any{
-		"agentId":          "runtime-openclaw-x",
-		"agentName":        "runtime-openclaw-x",
-		"email":            "owner@example.com",
-		"agentDescription": "",
+		"agentId":   "kloop_agent_INSTALL",
+		"agentName": "runtime-openclaw-x",
 	})
-	if !strings.Contains(result.stdout, "Claim Code: clm_runtime-openclaw-x") {
+	if !strings.Contains(result.stdout, "Claim Code: clm_kloop_agent_INSTALL") {
 		t.Fatalf("stdout=%s", result.stdout)
 	}
-	if !strings.Contains(result.stdout, "Claim Link: https://ledger.example.test/dashboard?claimCode=clm_runtime-openclaw-x&agentId=runtime-openclaw-x") {
+	if !strings.Contains(result.stdout, "Claim Link: https://ledger.example.test/dashboard?claimCode=clm_kloop_agent_INSTALL&agentId=kloop_agent_INSTALL") {
 		t.Fatalf("stdout=%s", result.stdout)
 	}
 }
@@ -389,19 +419,18 @@ func TestInstallPrintsClaimCodeAndLinkForHermesWhenLedgerIsAvailable(t *testing.
 	target := filepath.Join(root, "runtime-hermes-x", "config")
 
 	result := runInstall(t, root, map[string]*string{
-		"HERMES_CONFIG_DIR":        envValue(target),
-		"KOVALOOP_LEDGER_HTTP_URL": envValue(server.URL),
+		"HERMES_CONFIG_DIR":   envValue(target),
+		"KOVALOOP_LEDGER_URL": envValue(server.URL),
+		"EIGENFLUX_HOME":      envValue(filepath.Join(target, ".eigenflux")),
 	})
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
 	assertJSONMapEqual(t, stub.postedClaims()[0], map[string]any{
-		"agentId":          "runtime-hermes-x",
-		"agentName":        "runtime-hermes-x",
-		"email":            "owner@example.com",
-		"agentDescription": "",
+		"agentId":   "kloop_agent_INSTALL",
+		"agentName": "runtime-hermes-x",
 	})
-	if !strings.Contains(result.stdout, "Claim Code: clm_runtime-hermes-x") {
+	if !strings.Contains(result.stdout, "Claim Code: clm_kloop_agent_INSTALL") {
 		t.Fatalf("stdout=%s", result.stdout)
 	}
 }
@@ -456,7 +485,7 @@ func TestInstallDownloadsBinaryAssetFromBinaryBaseURL(t *testing.T) {
 	if got := stub.paths(); !reflectStringSlices(got, []string{"/" + assetName}) {
 		t.Fatalf("requested paths=%#v", got)
 	}
-	gotBytes, err := os.ReadFile(filepath.Join(target, ".local", "bin", "kovaloop"))
+	gotBytes, err := os.ReadFile(filepath.Join(root, ".local", "bin", "kovaloop"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -494,7 +523,7 @@ func TestInstallUsesLocalDistBeforeDownload(t *testing.T) {
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
-	gotBytes, err := os.ReadFile(filepath.Join(target, ".local", "bin", "kovaloop"))
+	gotBytes, err := os.ReadFile(filepath.Join(root, ".local", "bin", "kovaloop"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -526,12 +555,12 @@ func TestInstallRetryCommandIsPasteableWhenWorkspacePathContainsSpaces(t *testin
 		t.Fatalf("retry commands=%#v stdout=%s", retryCommands, result.stdout)
 	}
 	firstRetry := retryCommands[0]
-	if !strings.Contains(firstRetry, "OPENCLAW_WORKSPACE_DIR=") || !strings.Contains(firstRetry, `\ `) {
+	if !strings.Contains(firstRetry, "KOVALOOP_HOME=") || !strings.Contains(firstRetry, `\ `) {
 		t.Fatalf("retry command not escaped: %q", firstRetry)
 	}
 	env := append(os.Environ(),
 		"KOVALOOP_INSTALL_BIN_DIR="+testAssetDir,
-		"KOVALOOP_LEDGER_HTTP_URL=http://127.0.0.1:9",
+		"KOVALOOP_LEDGER_URL=http://127.0.0.1:9",
 	)
 	retry := runCommand(t, env, root, "sh", "-c", firstRetry)
 	if retry.code == 0 || retry.code == 127 {
@@ -553,8 +582,8 @@ func TestAgentWalletOnboardingDocsPointToClaimLink(t *testing.T) {
 		if !strings.Contains(source.body, "kovaloop claim link") {
 			t.Fatalf("%s missing kovaloop claim link", source.name)
 		}
-		if !strings.Contains(source.body, "owner email") {
-			t.Fatalf("%s missing owner email", source.name)
+		if !strings.Contains(source.body, "kovaloop profile create") {
+			t.Fatalf("%s missing kovaloop profile create", source.name)
 		}
 		if strings.Contains(source.body, "kovaloop ledger wallet get-or-create") {
 			t.Fatalf("%s still references direct wallet get-or-create", source.name)

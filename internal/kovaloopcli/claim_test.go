@@ -8,39 +8,26 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestClaimLinkPostsProfileAndPrintsLinks(t *testing.T) {
-	dir := t.TempDir()
-	profilePath := filepath.Join(dir, "profile.json")
-	err := os.WriteFile(profilePath, []byte(`{"email":"sender@example.com","agent_id":"agent_sender","agent_name":"Sender"}`), 0o644)
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestClaimLinkPostsCanonicalIdAndPrintsLinks(t *testing.T) {
+	home := writeLocalKovaloopProfile(t, t.TempDir(), "kloop_agent_TEST", "OntologyAgent")
 
-	var posted ClaimRequest
+	var posted map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/ledger/claims/link" {
 			t.Fatalf("path = %s", r.URL.Path)
-		}
-		if got := r.Header.Get("Accept"); got != "application/json, text/event-stream" {
-			t.Fatalf("Accept = %q", got)
-		}
-		if got := r.Header.Get("Content-Type"); got != "application/json" {
-			t.Fatalf("Content-Type = %q", got)
 		}
 		if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
 			t.Fatal(err)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"agentId":   "agent_sender",
+			"agentId":   "kloop_agent_TEST",
 			"claimCode": "clm_testclaim",
-			"claimUrl":  "https://ledger.example.test/dashboard?claimCode=clm_testclaim&agentId=agent_sender",
-			"agentUrl":  "https://ledger.example.test/dashboard?agentId=agent_sender",
+			"claimUrl":  "https://ledger.example.test/dashboard?claimCode=clm_testclaim&agentId=kloop_agent_TEST",
+			"agentUrl":  "https://ledger.example.test/dashboard?agentId=kloop_agent_TEST",
 		})
 	}))
 	defer server.Close()
@@ -48,57 +35,46 @@ func TestClaimLinkPostsProfileAndPrintsLinks(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"claim", "link"}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_LEDGER_HTTP_URL":    server.URL,
-		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
+		"KOVALOOP_LEDGER_URL": server.URL,
+		"KOVALOOP_HOME":       home,
 	})
 
 	if exitCode != 0 {
 		t.Fatalf("exit=%d stderr=%s", exitCode, stderr.String())
 	}
-	if posted.AgentID != "agent_sender" || posted.Email != "sender@example.com" {
+	// Only the canonical agentId + name are sent; no email field.
+	want := map[string]any{"agentId": "kloop_agent_TEST", "agentName": "OntologyAgent"}
+	if len(posted) != len(want) || posted["agentId"] != want["agentId"] || posted["agentName"] != want["agentName"] {
 		t.Fatalf("posted = %#v", posted)
 	}
-	for _, want := range []string{
-		"Agent ID:   agent_sender",
+	for _, w := range []string{
+		"Agent ID:   kloop_agent_TEST",
 		"Claim Code: clm_testclaim",
-		"Claim Link: https://ledger.example.test/dashboard?claimCode=clm_testclaim&agentId=agent_sender",
-		"Agent Link: https://ledger.example.test/dashboard?agentId=agent_sender",
-		"Claim Link is for the local owner to bind this agent wallet. Do not share it as a payment or deposit link.",
+		"Claim Link: https://ledger.example.test/dashboard?claimCode=clm_testclaim&agentId=kloop_agent_TEST",
 	} {
-		if !strings.Contains(stdout.String(), want) {
-			t.Fatalf("stdout missing %q: %s", want, stdout.String())
+		if !strings.Contains(stdout.String(), w) {
+			t.Fatalf("stdout missing %q: %s", w, stdout.String())
 		}
-	}
-	if stderr.String() != "" {
-		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 
-func TestClaimLinkProfileValidationReturnsExitCodeTwo(t *testing.T) {
-	profilePath := filepath.Join(t.TempDir(), "profile.json")
-	if err := os.WriteFile(profilePath, []byte(`{"email":"owner@example.com"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
+func TestClaimLinkWithoutLocalProfileReturnsExitCodeTwo(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"claim", "link"}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
+		"KOVALOOP_HOME": t.TempDir(), // no .kovaloop/profile.json
 	})
 
 	if exitCode != 2 {
 		t.Fatalf("exit code = %d, stderr=%q", exitCode, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "current OpenClaw profile is missing agent_id") {
+	if !strings.Contains(stderr.String(), "kovaloop profile create") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 
 func TestClaimLinkHTTPFailureReturnsNonZeroReadableError(t *testing.T) {
-	profilePath := filepath.Join(t.TempDir(), "profile.json")
-	if err := os.WriteFile(profilePath, []byte(`{"email":"sender@example.com","agent_id":"agent_sender"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	home := writeLocalKovaloopProfile(t, t.TempDir(), "kloop_agent_TEST", "OntologyAgent")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not today", http.StatusTeapot)
 	}))
@@ -107,8 +83,8 @@ func TestClaimLinkHTTPFailureReturnsNonZeroReadableError(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	exitCode := Run([]string{"claim", "link"}, &stdout, &stderr, EnvMap{
-		"KOVALOOP_LEDGER_HTTP_URL":    server.URL,
-		"KOVALOOP_AGENT_PROFILE_PATH": profilePath,
+		"KOVALOOP_LEDGER_URL": server.URL,
+		"KOVALOOP_HOME":       home,
 	})
 
 	if exitCode == 0 || exitCode == 2 {
@@ -121,87 +97,15 @@ func TestClaimLinkHTTPFailureReturnsNonZeroReadableError(t *testing.T) {
 	}
 }
 
-func TestPostJSONRetriesFallbackWhenPrimaryRequestFails(t *testing.T) {
-	fallbackCalls := 0
-	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fallbackCalls++
-		if r.URL.Path != "/ledger/claims/link" {
-			t.Fatalf("path = %s", r.URL.Path)
-		}
-		if got := r.Header.Get("Accept"); got != "application/json, text/event-stream" {
-			t.Fatalf("Accept = %q", got)
-		}
-		if got := r.Header.Get("Content-Type"); got != "application/json" {
-			t.Fatalf("Content-Type = %q", got)
-		}
-		_ = json.NewEncoder(w).Encode(ClaimResponse{AgentID: "agent_sender"})
-	}))
-	defer fallback.Close()
-
-	var response ClaimResponse
-	err := postJSON(Config{
-		LedgerURL:      "http://127.0.0.1:1",
-		LedgerFallback: fallback.URL,
-	}, "/ledger/claims/link", ClaimRequest{AgentID: "agent_sender"}, &response)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fallbackCalls != 1 {
-		t.Fatalf("fallback calls = %d", fallbackCalls)
-	}
-	if response.AgentID != "agent_sender" {
-		t.Fatalf("response = %#v", response)
-	}
-}
-
-func TestPostJSONRetriesFallbackWhenPrimaryReturnsHTTPFailure(t *testing.T) {
-	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "primary unavailable", http.StatusBadGateway)
-	}))
-	defer primary.Close()
-
-	fallbackCalls := 0
-	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fallbackCalls++
-		_ = json.NewEncoder(w).Encode(ClaimResponse{AgentID: "agent_fallback"})
-	}))
-	defer fallback.Close()
-
-	var response ClaimResponse
-	err := postJSON(Config{
-		LedgerURL:      primary.URL,
-		LedgerFallback: fallback.URL,
-	}, "/ledger/claims/link", ClaimRequest{AgentID: "agent_sender"}, &response)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fallbackCalls != 1 {
-		t.Fatalf("fallback calls = %d", fallbackCalls)
-	}
-	if response.AgentID != "agent_fallback" {
-		t.Fatalf("response = %#v", response)
-	}
-}
-
-func TestPostJSONDoesNotRetryFallbackOrMutateOutputWhenPrimaryReturnsInvalidJSON(t *testing.T) {
+func TestPostJSONDoesNotMutateOutputWhenPrimaryReturnsInvalidJSON(t *testing.T) {
 	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"agentId":"agent_primary",`)
 	}))
 	defer primary.Close()
 
-	fallbackCalls := 0
-	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fallbackCalls++
-		_ = json.NewEncoder(w).Encode(ClaimResponse{AgentID: "agent_fallback"})
-	}))
-	defer fallback.Close()
-
 	response := ClaimResponse{AgentID: "agent_existing"}
 	err := postJSON(Config{
-		LedgerURL:      primary.URL,
-		LedgerFallback: fallback.URL,
+		LedgerURL: primary.URL,
 	}, "/ledger/claims/link", ClaimRequest{AgentID: "agent_sender"}, &response)
 
 	if err == nil {
@@ -209,9 +113,6 @@ func TestPostJSONDoesNotRetryFallbackOrMutateOutputWhenPrimaryReturnsInvalidJSON
 	}
 	if !strings.Contains(err.Error(), "ledger response was not valid JSON") {
 		t.Fatalf("err = %v", err)
-	}
-	if fallbackCalls != 0 {
-		t.Fatalf("fallback calls = %d", fallbackCalls)
 	}
 	if response.AgentID != "agent_existing" {
 		t.Fatalf("response was mutated: %#v", response)

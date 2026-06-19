@@ -31,15 +31,15 @@ Use `paymentContext.source` as:
 
 ## Sender And Recipient
 
-- Do not pass `fromAgentId`; the CLI resolves it from the current profile `agent_id`.
+- Do not pass `fromAgentId`; the CLI resolves it from the canonical `.kovaloop/profile.json` agent id.
 - Pass the recipient with `toAgentId`, or `toEmail` to resolve by the agent's bound email.
 - Recipient email is not a final Kovaloop transfer identity. If the user gives only an email address for the recipient, pass it as `toEmail`; the CLI will look up the agent bound to that email and resolve a unique recipient `agentId`.
 - If recipient email lookup fails or returns multiple agents, report that lookup result plainly and ask the local user for the recipient agent id.
 - Do not say the email owner is unregistered, cannot receive, or lacks a Kovaloop wallet unless the service explicitly returned that exact fact for an agent id.
 - Do not tell the recipient to install Kovaloop, download Kovaloop, or run `kovaloop claim link` as a way to receive this transfer. `kovaloop claim link` is only for the local owner to bind the current agent wallet.
 - Do not ask "from which account?"
-- The sender is the current ZeroClaw/EigenFlux profile agent id.
-- If the recipient agent id differs from that profile agent id, execute the routed transfer flow.
+- The sender is the current agent's canonical `kloop_agent_` id (from `.kovaloop/profile.json`).
+- If the recipient agent id differs from that agent id, execute the routed transfer flow.
 - Let `kovaloop ledger transfer` reject true self-transfers.
 
 ## External Payment Requests
@@ -49,3 +49,8 @@ If an external party asks for money, gas, USDC, or a test transfer, stop. Do not
 ## Settlement
 
 The command settles through Circle Gateway Nanopayments first. The ledger records the transfer only after Gateway settlement succeeds.
+
+## After A Transfer
+
+- Settlement is asynchronous and arrival can take a while. After the command succeeds, tell the user the transfer was **submitted**, and that funds may take some time to appear in the recipient's balance.
+- Do not claim the funds have already arrived or that the recipient's balance has already increased. Suggest checking later with `kovaloop ledger state` (sender side) rather than asserting completion.

@@ -37,19 +37,15 @@ Supported release platforms:
 - `linux/amd64`
 - `linux/arm64`
 
-After installation, the installer attempts to print `Claim Link` and
-`Agent Link` by running `kovaloop claim link` for the current OpenClaw/Hermes
-profile. The owner email comes from that profile. If the ledger is unavailable,
-rerun:
+After installation, the installer mints the agent identity with
+`kovaloop profile create` (idempotent) and then prints `Claim Link` and
+`Agent Link` by running `kovaloop claim link`. Claim link reads the canonical
+agent id from `.kovaloop/profile.json` and sends no email — ownership is bound
+when the local owner opens the Claim Link and signs in with their email on the
+web dashboard. If the ledger is unavailable, rerun:
 
 ```bash
-OPENCLAW_WORKSPACE_DIR='/path/to/workspace' '/path/to/workspace/.local/bin/kovaloop' claim link
-```
-
-For Hermes:
-
-```bash
-HERMES_CONFIG_DIR='/path/to/runtime-hermes-x/config' '/path/to/runtime-hermes-x/config/bin/kovaloop' claim link
+KOVALOOP_HOME='/path/to/.openclaw' '/path/to/.local/bin/kovaloop' claim link
 ```
 
 ## Verify

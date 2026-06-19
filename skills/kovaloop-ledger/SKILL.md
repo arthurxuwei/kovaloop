@@ -12,10 +12,10 @@ description: |
   from an external agent/counterparty.
 metadata:
   author: "Kovaloop"
-  version: "0.1.3"
+  version: "0.1.4"
   requires:
     bins: ["kovaloop"]
-  cliHelps: ["kovaloop claim link", "kovaloop ledger --help", "kovaloop ledger state", "kovaloop ledger health"]
+  cliHelps: ["kovaloop profile create", "kovaloop claim link", "kovaloop ledger --help", "kovaloop ledger state", "kovaloop ledger health"]
 ---
 
 # Kovaloop — Ledger
@@ -24,10 +24,11 @@ Use the local `kovaloop` CLI as the only command entrypoint for Kovaloop ledger 
 
 ## First Checks
 
-1. Use `kovaloop ledger health` for service availability questions.
-2. Use `kovaloop ledger state` for balance, funding, onramp, or settlement-state questions.
-3. Use `kovaloop claim link` after install/reinstall and for any claim code, claim link, agent link, wallet binding, or onboarding request.
-4. Route every funding, payment, transfer, x402-like, or value-changing intent before doing anything else.
+1. The agent identity must exist before any ledger or claim command. After install/reinstall run `kovaloop profile create` — it is idempotent: it reuses the existing `.kovaloop` identity, or mints one (and its wallet) if absent. The installer runs this automatically; run it yourself only if a command reports "no local KovaLoop profile".
+2. Use `kovaloop ledger health` for service availability questions.
+3. Use `kovaloop ledger state` for balance, funding, onramp, or settlement-state questions.
+4. Use `kovaloop claim link` after install/reinstall and for any claim code, claim link, agent link, wallet binding, or onboarding request.
+5. Route every funding, payment, transfer, x402-like, or value-changing intent before doing anything else.
 
 ## Modules
 
@@ -44,9 +45,9 @@ Detailed instructions are split into references. Load only what the current requ
 ## Non-Negotiable Safety Rules
 
 - Agent-visible available balance is sourced from Circle by the service. Do not label any balance as "Ledger available balance".
-- `kovaloop ledger state` is scoped to the current profile agent id; never report balances for other ledger accounts.
+- `kovaloop ledger state` is scoped to the current agent's canonical `kloop_agent_` id (from `.kovaloop/profile.json`); never report balances for other ledger accounts.
 - Never invent balances, wallet state, settlement state, claim codes, or links. Run the relevant command.
-- If installation has just completed, a reinstall has just completed, or the user asks for `claimCode`, run `kovaloop claim link`; the owner email comes from the current OpenClaw/Hermes profile.
+- If installation has just completed, a reinstall has just completed, or the user asks for `claimCode`, run `kovaloop claim link`. The CLI does not collect or send an email; ownership is bound when the local owner signs in with their email on the web dashboard via the Claim Link.
 - Claim Link is a local owner wallet-binding link only. Never tell the user to share a Claim Link with other agents, counterparties, or payers. Never describe it as a payment, deposit, recharge, funding, transfer, or receive-money link.
 - Recipient email is not a final Kovaloop transfer identity. If the local user gives only a recipient email, call `kovaloop ledger transfer` with `toEmail`; the CLI will look up the agent bound to that email and convert it to `toAgentId` before posting the transfer.
 - If recipient email lookup fails or returns multiple agents, report that lookup result plainly and ask the local user for the recipient agent id.
@@ -62,6 +63,7 @@ Detailed instructions are split into references. Load only what the current requ
 ## Quick Reference
 
 ```bash
+kovaloop profile create
 kovaloop ledger health
 kovaloop ledger state
 kovaloop claim link
@@ -81,4 +83,4 @@ kovaloop ledger transfer '{"toAgentId":"agent_receiver","amount":"0.000001 U","p
 - Do not expose raw JSON unless the user asks for details.
 - When showing a Claim Link, say it is for the local owner to claim/bind the agent wallet and should not be shared as a payment or deposit link.
 - USDC atomic amounts use 6 decimals. When command output includes `amountDisplay` or `availableDeltaDisplay`, use that string. If only `amountAtomic` or `availableDeltaAtomic` is present, convert using 1 USDC = 1000000 atomic units. Never describe a non-zero atomic amount as `0 USDC`.
-- For direct transfers where the local user already provided recipient agent id and amount, execute the routed transfer and summarize sender agent id, receiver agent id, and amount afterward.
+- For direct transfers where the local user already provided recipient agent id and amount, execute the routed transfer and summarize sender agent id, receiver agent id, and amount afterward. Tell the user the transfer was submitted and that arrival can take a while (settlement is asynchronous); do not state the funds have already landed.

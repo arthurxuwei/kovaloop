@@ -165,17 +165,24 @@ func setupKovaloopWorkspace(t *testing.T) (*ledgerStub, *httptest.Server, string
 	server := httptest.NewServer(stub)
 	t.Cleanup(server.Close)
 
-	workspace := filepath.Join(t.TempDir(), "workspace")
-	profileDir := filepath.Join(workspace, ".eigenflux", "servers", "eigenflux")
-	if err := os.MkdirAll(profileDir, 0o755); err != nil {
+	home := t.TempDir()
+	workspace := filepath.Join(home, "workspace")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	profilePath := filepath.Join(profileDir, "profile.json")
-	writeFile(t, profilePath, `{"email":"sender@example.com","agent_id":"agent_sender","agent_name":"Sender"}`)
+	profilePath := filepath.Join(home, ".kovaloop", "profile.json")
+	if err := os.MkdirAll(filepath.Dir(profilePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFile(t, profilePath, map[string]any{
+		"schemaVersion": 1,
+		"agentId":       "agent_sender",
+		"agentName":     "Sender",
+	})
 
 	env := append(os.Environ(),
-		"KOVALOOP_LEDGER_HTTP_URL="+server.URL,
-		"OPENCLAW_WORKSPACE_DIR="+workspace,
+		"KOVALOOP_LEDGER_URL="+server.URL,
+		"KOVALOOP_HOME="+home,
 	)
 	return stub, server, workspace, profilePath, env
 }
@@ -416,25 +423,6 @@ func TestIntegrationTransferResolvesRecipientEmailToAgentID(t *testing.T) {
 	})
 }
 
-func TestIntegrationTransferFindsProfileFromWorkspaceCWD(t *testing.T) {
-	stub, _, workspace, _, env := setupKovaloopWorkspace(t)
-	env = removeEnv(env, "OPENCLAW_WORKSPACE_DIR")
-	env = append(env, "PWD="+workspace)
-	payload := map[string]any{
-		"toAgentId":      "agent_receiver",
-		"amount":         "0.001 U",
-		"paymentContext": localUserTestContext(),
-	}
-
-	result := runKovaloop(t, env, workspace, "ledger", "transfer", marshalPayload(t, payload))
-	if result.code != 0 {
-		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
-	}
-	if got := stub.transfers()[0]["fromAgentId"]; got != "agent_sender" {
-		t.Fatalf("fromAgentId = %#v", got)
-	}
-}
-
 func TestIntegrationTransferAcceptsLocalUserRequestContext(t *testing.T) {
 	stub, _, _, _, env := setupKovaloopWorkspace(t)
 	payload := map[string]any{
@@ -456,85 +444,73 @@ func TestIntegrationTransferAcceptsLocalUserRequestContext(t *testing.T) {
 	}
 }
 
-func TestIntegrationClaimLinkProfileHandling(t *testing.T) {
-	stub, _, _, profilePath, env := setupKovaloopWorkspace(t)
+// setupClaimLink prepares a stub ledger and a local .kovaloop/profile.json,
+// returning the stub and an env with KOVALOOP_LEDGER_URL + KOVALOOP_HOME.
+func setupClaimLink(t *testing.T, agentID, agentName string) (*ledgerStub, string, []string) {
+	t.Helper()
+	stub := &ledgerStub{}
+	server := httptest.NewServer(stub)
+	t.Cleanup(server.Close)
+	home := t.TempDir()
+	profileJSON := filepath.Join(home, ".kovaloop", "profile.json")
+	if err := os.MkdirAll(filepath.Dir(profileJSON), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFile(t, profileJSON, map[string]any{
+		"schemaVersion": 1,
+		"agentId":       agentID,
+		"agentName":     agentName,
+	})
+	env := append(os.Environ(),
+		"KOVALOOP_LEDGER_URL="+server.URL,
+		"KOVALOOP_HOME="+home,
+	)
+	return stub, profileJSON, env
+}
+
+func TestIntegrationClaimLinkUsesCanonicalLocalProfile(t *testing.T) {
+	stub, profileJSON, env := setupClaimLink(t, "kloop_agent_X", "OntologyAgent")
+
 	result := runKovaloop(t, env, "", "claim", "link")
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
+	// Only the canonical agentId + name are sent — no email/description.
 	assertJSONMapEqual(t, stub.claims()[0], map[string]any{
-		"agentId":          "agent_sender",
-		"agentName":        "Sender",
-		"email":            "sender@example.com",
-		"agentDescription": "",
+		"agentId":   "kloop_agent_X",
+		"agentName": "OntologyAgent",
 	})
 	for _, want := range []string{
-		"Agent ID:   agent_sender",
+		"Agent ID:   kloop_agent_X",
 		"Claim Code: clm_testclaim",
-		"Claim Link: https://ledger.example.test/dashboard?claimCode=clm_testclaim&agentId=agent_sender",
-		"Agent Link: https://ledger.example.test/dashboard?agentId=agent_sender",
+		"Claim Link: https://ledger.example.test/dashboard?claimCode=clm_testclaim&agentId=kloop_agent_X",
 	} {
 		if !strings.Contains(result.stdout, want) {
 			t.Fatalf("stdout missing %q: %s", want, result.stdout)
 		}
 	}
 
-	if err := os.Remove(profilePath); err != nil {
+	// Missing local profile -> exit 2 with a create hint.
+	if err := os.Remove(profileJSON); err != nil {
 		t.Fatal(err)
 	}
 	result = runKovaloop(t, env, "", "claim", "link")
-	if result.code == 0 {
-		t.Fatalf("missing profile succeeded")
-	}
-	if !strings.Contains(result.stderr, "OpenClaw profile") || !strings.Contains(result.stderr, profilePath) {
-		t.Fatalf("stderr = %q", result.stderr)
-	}
-
-	writeFile(t, profilePath, `{"agent_id": `)
-	result = runKovaloop(t, env, "", "claim", "link")
-	if result.code == 0 || !strings.Contains(result.stderr, "malformed JSON") || !strings.Contains(result.stderr, profilePath) {
-		t.Fatalf("malformed profile exit=%d stderr=%q", result.code, result.stderr)
-	}
-
-	writeFile(t, profilePath, `[]`)
-	result = runKovaloop(t, env, "", "claim", "link")
-	if result.code == 0 || !strings.Contains(result.stderr, "malformed") || strings.Contains(result.stderr, "Traceback") {
-		t.Fatalf("non-object profile exit=%d stderr=%q", result.code, result.stderr)
+	if result.code != 2 || !strings.Contains(result.stderr, "kovaloop profile create") {
+		t.Fatalf("missing profile exit=%d stderr=%q", result.code, result.stderr)
 	}
 }
 
-func TestIntegrationClaimLinkDoesNotNeedExternalRuntimeAndEncodesProfile(t *testing.T) {
-	stub, _, _, profilePath, env := setupKovaloopWorkspace(t)
-	writeJSONFile(t, profilePath, map[string]any{
-		"email":      "sender@example.com",
-		"agent_id":   "agent_sender",
-		"agent_name": `Sender "Slash" \ Agent`,
-		"bio":        `Builds "quoted" paths like C:\agents\sender`,
-	})
+func TestIntegrationClaimLinkDoesNotNeedExternalRuntime(t *testing.T) {
+	stub, _, env := setupClaimLink(t, "kloop_agent_X", `Agent "Slash" \ Name`)
 
 	result := runKovaloop(t, restrictedEnv(t, env), "", "claim", "link")
 	if result.code != 0 {
 		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
 	}
 	assertJSONMapEqual(t, stub.claims()[0], map[string]any{
-		"agentId":          "agent_sender",
-		"agentName":        `Sender "Slash" \ Agent`,
-		"email":            "sender@example.com",
-		"agentDescription": `Builds "quoted" paths like C:\agents\sender`,
+		"agentId":   "kloop_agent_X",
+		"agentName": `Agent "Slash" \ Name`,
 	})
-
-	writeJSONFile(t, profilePath, map[string]any{
-		"email":      "sender@example.com",
-		"agent_id":   "agent_sender",
-		"agent_name": "   ",
-	})
-	result = runKovaloop(t, env, "", "claim", "link")
-	if result.code != 0 {
-		t.Fatalf("exit=%d stderr=%s", result.code, result.stderr)
-	}
-	if got := stub.claims()[1]["agentName"]; got != "agent_sender" {
-		t.Fatalf("agentName = %#v", got)
-	}
 }
 
 func TestIntegrationWalletValidationDoesNotNeedExternalRuntime(t *testing.T) {

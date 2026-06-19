@@ -17,13 +17,22 @@ Usage:
   kovaloop ledger wallet get-or-create '<json>'
   kovaloop ledger transfer '{"toAgentId":"agent_receiver","amount":"0.000001 U","paymentContext":{"source":"local_user_test","userApproved":true,"reason":"Local user approved an online transfer test"}}'
   kovaloop claim link
+  kovaloop profile create
+  kovaloop profile update '{"description":"..."}'
+  kovaloop profile show
 
 Environment:
-  KOVALOOP_LEDGER_URL             default hosted ledger REST service base URL
-  KOVALOOP_LEDGER_HTTP_URL        optional explicit service base URL for CLI REST calls
-  KOVALOOP_LEDGER_FALLBACK_URL    optional fallback service base URL
-  HERMES_CONFIG_DIR               optional Hermes config directory for profile lookup
+  KOVALOOP_LEDGER_URL             ledger REST service base URL (default https://ledger.kovaloop.ai)
+  KOVALOOP_HOME                   override the .kovaloop directory location (default $HOME/.openclaw)
+  EIGENFLUX_HOME                  read-only: EigenFlux home, used to import an existing EigenFlux profile (else $HOME/.eigenflux)
 `
+
+// claimLinkRequest is the claim-link payload: the canonical agentId is the only
+// identity the server needs; ownership email is bound by the web OAuth login.
+type claimLinkRequest struct {
+	AgentID   string `json:"agentId"`
+	AgentName string `json:"agentName"`
+}
 
 func Run(args []string, stdout io.Writer, stderr io.Writer, env EnvMap) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
@@ -37,16 +46,12 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, env EnvMap) int {
 	if args[0] == "claim" {
 		if len(args) == 2 && args[1] == "link" {
 			cfg := ConfigFromEnv(env)
-			profile, err := LoadProfile(ProfilePath(cfg))
-			if err != nil {
-				fmt.Fprintln(stderr, err.Error())
+			local, err := LoadLocalProfile(ProfileJSONPath(cfg))
+			if err != nil || local.AgentID == "" {
+				fmt.Fprintln(stderr, "no local KovaLoop profile; run 'kovaloop profile create' first")
 				return 2
 			}
-			body, err := ClaimPayload(profile)
-			if err != nil {
-				fmt.Fprintln(stderr, err.Error())
-				return 2
-			}
+			body := claimLinkRequest{AgentID: local.AgentID, AgentName: local.AgentName}
 			var response ClaimResponse
 			if err := postJSON(cfg, "/ledger/claims/link", body, &response); err != nil {
 				fmt.Fprintln(stderr, err.Error())
@@ -57,6 +62,9 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, env EnvMap) int {
 		}
 		fmt.Fprint(stderr, usageText)
 		return 2
+	}
+	if args[0] == "profile" {
+		return runProfile(args[1:], stdout, stderr, ConfigFromEnv(env))
 	}
 	if args[0] == "ledger" {
 		return runLedger(args[1:], stdout, stderr, ConfigFromEnv(env))
@@ -95,7 +103,7 @@ func runLedger(args []string, stdout io.Writer, stderr io.Writer, cfg Config) in
 		body, err := LedgerState(cfg)
 		if err != nil {
 			fmt.Fprintln(stderr, err.Error())
-			if strings.Contains(err.Error(), "OpenClaw profile") || strings.Contains(err.Error(), "missing agent_id") {
+			if strings.Contains(err.Error(), "KovaLoop profile") || strings.Contains(err.Error(), "OpenClaw profile") || strings.Contains(err.Error(), "missing agent_id") {
 				return 2
 			}
 			return 1

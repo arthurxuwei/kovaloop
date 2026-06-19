@@ -36,14 +36,14 @@ func runLedgerTransfer(args []string, stdout io.Writer, stderr io.Writer, cfg Co
 		fmt.Fprintln(stderr, "usage: kovaloop ledger transfer '<json>'")
 		return 2
 	}
-	profile, err := LoadProfile(ProfilePath(cfg))
+	fromAgentID, err := CanonicalAgentID(cfg)
 	if err != nil {
 		fmt.Fprintln(stderr, err.Error())
 		return 2
 	}
 	body, err := buildTransferRequestWithResolver(
 		[]byte(args[0]),
-		profile,
+		fromAgentID,
 		func(email string) (string, error) {
 			return resolveRecipientAgentIDByEmail(cfg, email)
 		},
@@ -61,13 +61,13 @@ func runLedgerTransfer(args []string, stdout io.Writer, stderr io.Writer, cfg Co
 	return 0
 }
 
-func buildTransferRequest(data []byte, profile Profile) (transferRequest, error) {
-	return buildTransferRequestWithResolver(data, profile, nil)
+func buildTransferRequest(data []byte, fromAgentID string) (transferRequest, error) {
+	return buildTransferRequestWithResolver(data, fromAgentID, nil)
 }
 
 func buildTransferRequestWithResolver(
 	data []byte,
-	profile Profile,
+	fromAgentID string,
 	resolveRecipientEmail func(string) (string, error),
 ) (transferRequest, error) {
 	var rawPayload map[string]json.RawMessage
@@ -91,9 +91,9 @@ func buildTransferRequestWithResolver(
 		return transferRequest{}, fmt.Errorf("transfer payload is malformed JSON: %s", err.Error())
 	}
 
-	fromAgentID := strings.TrimSpace(profile.normalizedAgentID())
+	fromAgentID = strings.TrimSpace(fromAgentID)
 	if fromAgentID == "" {
-		return transferRequest{}, fmt.Errorf("current OpenClaw profile is missing agent_id")
+		return transferRequest{}, fmt.Errorf("no local KovaLoop profile; run 'kovaloop profile create' first")
 	}
 	toAgentID := strings.TrimSpace(payload.ToAgentID)
 	toEmail := normalizeEmail(payload.ToEmail)

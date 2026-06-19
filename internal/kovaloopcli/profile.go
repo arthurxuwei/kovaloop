@@ -25,33 +25,23 @@ type ClaimRequest struct {
 	AgentDescription string `json:"agentDescription"`
 }
 
+// ensureEigenfluxSuffix mirrors EigenFlux's own home-dir resolution: append
+// ".eigenflux" unless the path already ends with it.
+func ensureEigenfluxSuffix(dir string) string {
+	if filepath.Base(dir) == ".eigenflux" {
+		return dir
+	}
+	return filepath.Join(dir, ".eigenflux")
+}
+
+// ProfilePath resolves the EigenFlux profile, mirroring EigenFlux's own
+// HomeDir() precedence: EIGENFLUX_HOME (read-only, runtime-provided) → $HOME/.eigenflux.
 func ProfilePath(cfg Config) string {
-	if cfg.AgentProfile != "" {
-		return cfg.AgentProfile
+	home := cfg.Home
+	if cfg.EigenfluxHome != "" {
+		home = cfg.EigenfluxHome
 	}
-	if cfg.WorkspaceDir != "" {
-		return filepath.Join(cfg.WorkspaceDir, ".eigenflux", "servers", "eigenflux", "profile.json")
-	}
-	if cfg.HermesConfigDir != "" {
-		for _, candidate := range []string{
-			filepath.Join(cfg.HermesConfigDir, ".eigenflux", "servers", "eigenflux", "profile.json"),
-			filepath.Join(cfg.HermesConfigDir, "workspace", ".eigenflux", "servers", "eigenflux", "profile.json"),
-			filepath.Join(cfg.HermesConfigDir, "profile.json"),
-		} {
-			if _, err := os.Stat(candidate); err == nil {
-				return candidate
-			}
-		}
-		return filepath.Join(cfg.HermesConfigDir, ".eigenflux", "servers", "eigenflux", "profile.json")
-	}
-	if cfg.WorkingDir == "" {
-		cfg.WorkingDir = "."
-	}
-	candidate := filepath.Join(cfg.WorkingDir, ".eigenflux", "servers", "eigenflux", "profile.json")
-	if _, err := os.Stat(candidate); err == nil {
-		return candidate
-	}
-	return filepath.Join(cfg.WorkingDir, "workspace", ".eigenflux", "servers", "eigenflux", "profile.json")
+	return filepath.Join(ensureEigenfluxSuffix(home), "servers", "eigenflux", "profile.json")
 }
 
 func LoadProfile(path string) (Profile, error) {

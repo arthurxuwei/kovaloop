@@ -122,15 +122,25 @@ install_kovaloop_binary() {
 install_skill_to() {
   local skills_dest="$1"
   local skill_name="$2"
+  shift 2
+  local extra_files=("$@")
   local dest_dir="$skills_dest/$skill_name"
 
   rm -rf "$dest_dir"
   mkdir -p "$dest_dir"
 
   if [ -d "$ROOT_DIR/skills/$skill_name" ]; then
+    # Local checkout: copy the whole skill tree (SKILL.md + references/, etc.).
     cp -R "$ROOT_DIR/skills/$skill_name/." "$dest_dir/"
   else
+    # Remote install: there is no directory listing over HTTP, so fetch SKILL.md
+    # plus each explicitly listed file (e.g. references/*.md).
     install_file "skills/$skill_name/SKILL.md" "$dest_dir/SKILL.md"
+    local rel
+    for rel in "${extra_files[@]}"; do
+      mkdir -p "$dest_dir/$(dirname "$rel")"
+      install_file "skills/$skill_name/$rel" "$dest_dir/$rel"
+    done
   fi
 }
 
@@ -143,11 +153,12 @@ install_runtime() {
   local root="$2"
   local skills_dest="$3"
   local bin_dest="$4"
-  local env_name="$5"
-  local quoted_root
+  local kovaloop_home="$5"
   local quoted_kovaloop
 
-  quoted_root="$(shell_quote "$root")"
+  # We never set EIGENFLUX_* variables (those belong to the EigenFlux runtime
+  # and are read-only for us). The CLI resolves the EigenFlux profile from the
+  # ambient EIGENFLUX_HOME; the installer only sets KOVALOOP_HOME for .kovaloop.
   quoted_kovaloop="$(shell_quote "$bin_dest/kovaloop")"
 
   mkdir -p "$skills_dest" "$bin_dest"
@@ -155,7 +166,12 @@ install_runtime() {
   find "$skills_dest" -maxdepth 1 -type d -name 'kovaloop-*' -exec rm -rf {} +
   rm -f "$bin_dest/chief"
 
-  install_skill_to "$skills_dest" kovaloop-ledger
+  install_skill_to "$skills_dest" kovaloop-ledger \
+    references/balance-state.md \
+    references/troubleshooting.md \
+    references/payment-routing.md \
+    references/direct-transfer.md \
+    references/onboarding.md
 
   install_kovaloop_binary "$bin_dest/kovaloop"
 
@@ -167,25 +183,30 @@ CLI:                $bin_dest/kovaloop
 Skills:             $skills_dest
 EOF
 
-  if env "$env_name=$root" "$bin_dest/kovaloop" claim link; then
+  # Mint the KovaLoop identity if absent (idempotent: reused when credentials exist).
+  env KOVALOOP_HOME="$kovaloop_home" "$bin_dest/kovaloop" profile create || true
+
+  if env KOVALOOP_HOME="$kovaloop_home" "$bin_dest/kovaloop" claim link; then
     return 0
   fi
 
   cat <<EOF
 Claim link unavailable for $root.
 Retry:
-$env_name=$quoted_root $quoted_kovaloop claim link
+KOVALOOP_HOME=$(shell_quote "$kovaloop_home") $quoted_kovaloop claim link
 EOF
 }
 
 install_openclaw_workspace() {
   local workspace="$1"
-  install_runtime "OpenClaw workspace" "$workspace" "$workspace/skills" "$workspace/.local/bin" "OPENCLAW_WORKSPACE_DIR"
+  # Binary goes to $HOME/.local/bin (on PATH, alongside the eigenflux CLI);
+  # the skill stays per-workspace; .kovaloop lives at the config volume root.
+  install_runtime "OpenClaw workspace" "$workspace" "$workspace/skills" "$HOME/.local/bin" "$(dirname "$workspace")"
 }
 
 install_hermes_config() {
   local config="$1"
-  install_runtime "Hermes config" "$config" "$config/skills" "$config/bin" "HERMES_CONFIG_DIR"
+  install_runtime "Hermes config" "$config" "$config/skills" "$HOME/.local/bin" "$config"
 }
 
 install_discovered_runtimes

@@ -21,11 +21,15 @@ var httpClient = &http.Client{
 }
 
 func getJSON(cfg Config, path string, out any) error {
-	return doJSON(http.MethodGet, cfg.LedgerURL, cfg.LedgerFallback, path, nil, out)
+	data, err := doRequest(http.MethodGet, cfg.LedgerURL, path, nil, nil)
+	if err != nil {
+		return err
+	}
+	return decodeJSONResponse(data, out)
 }
 
 func getRaw(cfg Config, path string) ([]byte, error) {
-	return doRaw(http.MethodGet, cfg.LedgerURL, cfg.LedgerFallback, path, nil)
+	return doRequest(http.MethodGet, cfg.LedgerURL, path, nil, nil)
 }
 
 func postJSON(cfg Config, path string, body any, out any) error {
@@ -33,7 +37,11 @@ func postJSON(cfg Config, path string, body any, out any) error {
 	if err != nil {
 		return err
 	}
-	return doJSON(http.MethodPost, cfg.LedgerURL, cfg.LedgerFallback, path, payload, out)
+	data, err := doRequest(http.MethodPost, cfg.LedgerURL, path, payload, nil)
+	if err != nil {
+		return err
+	}
+	return decodeJSONResponse(data, out)
 }
 
 func postRaw(cfg Config, path string, body any) ([]byte, error) {
@@ -41,36 +49,20 @@ func postRaw(cfg Config, path string, body any) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return doRaw(http.MethodPost, cfg.LedgerURL, cfg.LedgerFallback, path, payload)
+	return doRequest(http.MethodPost, cfg.LedgerURL, path, payload, nil)
 }
 
 func postRawJSON(cfg Config, path string, body json.RawMessage) ([]byte, error) {
-	return doRaw(http.MethodPost, cfg.LedgerURL, cfg.LedgerFallback, path, body)
+	return doRequest(http.MethodPost, cfg.LedgerURL, path, body, nil)
 }
 
-func doJSON(method string, primary string, fallback string, path string, body []byte, out any) error {
-	data, err := doRaw(method, primary, fallback, path, body)
-	if err != nil {
-		return err
-	}
-	return decodeJSONResponse(data, out)
+// patchRaw sends a PATCH with the exact body bytes and caller-supplied headers
+// (used for signed agent requests, where the signed bytes must be transmitted unchanged).
+func patchRaw(cfg Config, path string, body []byte, headers map[string]string) ([]byte, error) {
+	return doRequest(http.MethodPatch, cfg.LedgerURL, path, body, headers)
 }
 
-func doRaw(method string, primary string, fallback string, path string, body []byte) ([]byte, error) {
-	data, retryable, err := doJSONOnce(method, primary, path, body)
-	if err != nil {
-		if !retryable || fallback == "" {
-			return nil, err
-		}
-		data, _, err = doJSONOnce(method, fallback, path, body)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return data, nil
-}
-
-func doJSONOnce(method string, base string, path string, body []byte) ([]byte, bool, error) {
+func doRequest(method string, base string, path string, body []byte, headers map[string]string) ([]byte, error) {
 	url := strings.TrimRight(base, "/") + path
 	var reader io.Reader
 	if body != nil {
@@ -78,26 +70,29 @@ func doJSONOnce(method string, base string, path string, body []byte) ([]byte, b
 	}
 	req, err := http.NewRequest(method, url, reader)
 	if err != nil {
-		return nil, true, err
+		return nil, err
 	}
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return nil, true, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, true, fmt.Errorf("ledger response read failed: %s", err.Error())
+		return nil, fmt.Errorf("ledger response read failed: %s", err.Error())
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, true, fmt.Errorf("ledger request failed: HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(data)))
+		return nil, fmt.Errorf("ledger request failed: HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(data)))
 	}
-	return data, false, nil
+	return data, nil
 }
 
 func decodeJSONResponse(data []byte, out any) error {
